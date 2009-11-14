@@ -1,0 +1,5 @@
+?package(bangarang):needs="X11"\
+  section="Applications/Video"\
+  section="Applications/Sound"\
+  title="bangarang"\
+  command="/usr/bin/bangarang"
