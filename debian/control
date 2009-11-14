@@ -1,0 +1,18 @@
+Source: bangarang
+Section: kde
+Priority: optional
+Maintainer: Ryan Kavanagh <ryanakca@kubuntu.org>
+Build-Depends: debhelper (>= 7),
+ cmake
+Standards-Version: 3.8.3
+Homepage: http://gitorious.org/bangarang
+
+Package: bangarang
+Architecture: any
+Depends: ${shlibs:Depends},
+ ${misc:Depends}
+Description: Multimedia player with a lightweight interface for KDE
+ Offers a media—audio and video—player with a lightweight interface. Integrates
+ with the Nepomuk Social Semantic Desktop, supports command line arguments, can
+ play CDs and DVDs and audio streams. It also has basic keyboard shortcuts and
+ allows users to manually manage playlists.
