@@ -4,7 +4,8 @@ Priority: optional
 Maintainer: Ryan Kavanagh <ryanakca@kubuntu.org>
 Build-Depends: debhelper (>= 7),
  cmake,
- kdemultimedia-dev
+ kdemultimedia-dev,
+ libtag1-dev
 Standards-Version: 3.8.3
 Homepage: http://gitorious.org/bangarang
 
