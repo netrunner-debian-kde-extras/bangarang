@@ -4,7 +4,7 @@ Priority: optional
 Maintainer: Ryan Kavanagh <ryanakca@kubuntu.org>
 Uploaders: Debian Multimedia Packages Maintainers <pkg-multimedia-maintainers@lists.alioth.debian.org>
 Build-Depends: debhelper (>= 7),
- pkg-kde-tools,
+ pkg-kde-tools (>= 0.5.0),
  cmake,
  kdemultimedia-dev,
  libtag1-dev
