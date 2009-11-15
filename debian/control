@@ -15,6 +15,7 @@ Package: bangarang
 Architecture: any
 Depends: ${shlibs:Depends},
  ${misc:Depends},
+ libkcddb4,
  kdelibs5
 Description: Multimedia player with a lightweight interface for KDE
  Offers a media—audio and video—player with a lightweight interface. Integrates
