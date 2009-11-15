@@ -14,7 +14,8 @@ Homepage: http://gitorious.org/bangarang
 Package: bangarang
 Architecture: any
 Depends: ${shlibs:Depends},
- ${misc:Depends}
+ ${misc:Depends},
+ kdelibs5
 Description: Multimedia player with a lightweight interface for KDE
  Offers a media—audio and video—player with a lightweight interface. Integrates
  with the Nepomuk Social Semantic Desktop, supports command line arguments, can
