@@ -16,8 +16,8 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef AUDIOSTREAMLISTENGINE_H
-#define AUDIOSTREAMLISTENGINE_H
+#ifndef SEMANTICSLISTENGINE_H
+#define SEMANTICSLISTENGINE_H
 
 #include "nepomuklistengine.h"
 #include <QtCore>
@@ -27,20 +27,20 @@ class MediaItem;
 class MediaListProperties;
 class ListEngineFactory;
 
-class AudioStreamQuery {
+class SemanticsQuery {
     public:
-        AudioStreamQuery(bool distinct = true);
+        SemanticsQuery(bool distinct = true);
         
-        void selectResource();
-        void selectTitle(bool optional=false);
-        void selectGenre(bool optional=false);
+        void selectAudioResource();
+        void selectVideoResource();
         void selectRating(bool optional=false);
-        void selectDescription(bool optional=false);
-        void selectArtwork(bool optional=false);
+        void selectPlayCount(bool optional=false);
+        void selectLastPlayed(bool optional=false);
         
         void searchString(QString str);
         
         void orderBy(QString var);
+        
         
         Soprano::QueryResultIterator executeSelect(Soprano::Model* model);
         bool executeAsk(Soprano::Model* model);
@@ -48,19 +48,18 @@ class AudioStreamQuery {
     private:
         bool m_distinct;
         
-        bool m_selectResource;
-        bool m_selectTitle;
-        bool m_selectGenre;
+        bool m_selectAudioResource;
+        bool m_selectVideoResource;
         bool m_selectRating;
-        bool m_selectDescription;
-        bool m_selectArtwork;
+        bool m_selectPlayCount;
+        bool m_selectLastPlayed;
         
-        QString m_titleCondition;
-        QString m_genreCondition;
-        QString m_searchCondition;
+        QString m_audioResourceCondition;
+        QString m_videoResourceCondition;
         QString m_ratingCondition;
-        QString m_descriptionCondition;
-        QString m_artworkCondition;
+        QString m_playCountCondition;
+        QString m_lastPlayedCondition;
+        QString m_searchCondition;
         
         QString m_order;
         
@@ -68,23 +67,18 @@ class AudioStreamQuery {
         QString getPrefix();
 };
 
-class AudioStreamListEngine : public NepomukListEngine
+class SemanticsListEngine : public NepomukListEngine
 {
     Q_OBJECT
     
     public:
-        AudioStreamListEngine(ListEngineFactory *parent);
-        ~AudioStreamListEngine();
+        SemanticsListEngine(ListEngineFactory *parent);
+        ~SemanticsListEngine();
         void run();
-        void setFilterForSources(const QString& engineFilter);
-        void activateAction();
-        
-    private:
-        MediaItem createMediaItem(Soprano::QueryResultIterator& it);
-        
+       
     Q_SIGNALS:
         void results(QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done);
         
 };
-#endif // AUDIOSTREAMLISTENGINE_H
+#endif // SEMANTICSLISTENGINE_H
 

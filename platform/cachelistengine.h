@@ -16,41 +16,27 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef FILELISTENGINE_H
-#define FILELISTENGINE_H
+#ifndef CACHELISTENGINE_H
+#define CACHELISTENGINE_H
 
-#include "nepomuklistengine.h"
+#include "listengine.h"
 #include <QtCore>
-#include <QDir>
-#include <KUrl>
-#include <Nepomuk/Resource>
-#include <Nepomuk/ResourceManager>
-#include <Soprano/Model>
 
 class MediaItem;
 class MediaListProperties;
 class ListEngineFactory;
-class MediaIndexer;
 
-class FileListEngine : public NepomukListEngine
+class CacheListEngine : public ListEngine
 {
     Q_OBJECT
     
     public:
-        FileListEngine(ListEngineFactory *parent);
-        ~FileListEngine();
+        CacheListEngine(ListEngineFactory *parent);
+        ~CacheListEngine();
         void run();
-        void activateAction();
         
-    private:
-        QFileInfoList crawlDir(QDir dir, QStringList mimeFilter);
-        KUrl::List QFileInfoListToKUrlList(QFileInfoList fileInfoList);
-        QList<MediaItem> readAudioUrlList(KUrl::List fileList);
-        QList<MediaItem> readVideoUrlList(KUrl::List fileList);
-        QString engineFilterFromUrlList(KUrl::List fileList);
-
     Q_SIGNALS:
         void results(QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done);
         
 };
-#endif // FILELISTENGINE_H
+#endif // CACHELISTENGINE_H

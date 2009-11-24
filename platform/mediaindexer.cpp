@@ -22,6 +22,7 @@
 #include "mediavocabulary.h"
 
 #include <KUrl>
+#include <KDebug>
 #include <kuiserverjobtracker.h>
 #include <Soprano/QueryResultIterator>
 #include <Soprano/Vocabulary/Xesam>
@@ -29,6 +30,7 @@
 #include <Soprano/Vocabulary/XMLSchema>
 #include <nepomuk/resource.h>
 #include <nepomuk/variant.h>
+#include <Nepomuk/ResourceManager>
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
 #include <id3v2tag.h>
@@ -77,10 +79,25 @@ void MediaIndexerJob::index()
         for (int i = 0; i < mediaList.count(); ++i) {
             emit description(this, descriptionTitle, qMakePair(QString("Current Item"), QString("%1").arg(mediaList.at(i).title)));
             
-            indexMediaItem(mediaList.at(i));     
+            indexMediaItem(mediaList.at(i));
+            emit sourceInfoUpdated(mediaList.at(i));
             setPercent(100*i/mediaList.count());
         }
         emit description(this, QString("Bangarang: %1 items indexed").arg(mediaList.count()));
+        emitResult();
+        running = false;
+    } else if (m_indexType == MediaIndexer::RemoveInfo) {
+        QList<MediaItem> mediaList = m_mediaListToIndex;
+        m_mediaListToIndex.clear();
+        QString descriptionTitle = QString("Bangarang: Removing Info for %1 items").arg(mediaList.count());
+        for (int i = 0; i < mediaList.count(); ++i) {
+            emit description(this, descriptionTitle, qMakePair(QString("Current Item"), QString("%1").arg(mediaList.at(i).title)));
+            
+            removeInfo(mediaList.at(i));     
+            emit urlInfoRemoved(mediaList.at(i).url);
+            setPercent(100*i/mediaList.count());
+        }
+        emit description(this, QString("Bangarang: Info for %1 items removed").arg(mediaList.count()));
         emitResult();
         running = false;
     }
@@ -100,6 +117,14 @@ void MediaIndexerJob::setMediaListToIndex(QList<MediaItem> mediaList)
     if (!running) {
         m_mediaListToIndex << mediaList;
         m_indexType = MediaIndexer::IndexMediaItem;
+    }
+}
+
+void MediaIndexerJob::setInfoToRemove(QList<MediaItem> mediaList)
+{
+    if (!running) {
+        m_mediaListToIndex << mediaList;
+        m_indexType = MediaIndexer::RemoveInfo;
     }
 }
 
@@ -141,13 +166,25 @@ void MediaIndexerJob::indexMediaItem(MediaItem mediaItem)
         QUrl audioType;
         if (mediaItem.fields["audioType"] == "Music") {
             audioType = mediaVocabulary.typeAudioMusic();
+            if (!res.exists()) {
+                res = Nepomuk::Resource(mediaItem.url, audioType);
+            }
+            removeType(res, mediaVocabulary.typeAudioStream());
+            removeType(res, mediaVocabulary.typeAudio());
         } else if (mediaItem.fields["audioType"] == "Audio Stream") {
             audioType = mediaVocabulary.typeAudioStream();
+            if (!res.exists()) {
+                res = Nepomuk::Resource(mediaItem.url, audioType);
+            }
+            removeType(res, mediaVocabulary.typeAudioMusic());
+            removeType(res, mediaVocabulary.typeAudio());
         } else if (mediaItem.fields["audioType"] == "Audio Clip") {
             audioType = mediaVocabulary.typeAudio();
-        }
-        if (!res.exists()) {
-            res = Nepomuk::Resource(mediaItem.url, audioType);
+            if (!res.exists()) {
+                res = Nepomuk::Resource(mediaItem.url, audioType);
+            }
+            removeType(res, mediaVocabulary.typeAudioMusic());
+            removeType(res, mediaVocabulary.typeAudioStream());
         }
         if (!res.hasType(audioType)) {
             res.addType(audioType);
@@ -172,14 +209,19 @@ void MediaIndexerJob::indexMediaItem(MediaItem mediaItem)
             int track   = mediaItem.fields["trackNumber"].toInt();
             QString genre   = mediaItem.fields["genre"].toString();
             int duration = mediaItem.fields["duration"].toInt();
+            int year = mediaItem.fields["year"].toInt();
             res.setProperty(mediaVocabulary.musicArtist(), Nepomuk::Variant(artist));
             res.setProperty(mediaVocabulary.musicAlbumName(), Nepomuk::Variant(album));
+            res.setProperty(mediaVocabulary.genre(), Nepomuk::Variant(genre));
             if (track != 0) {
                 res.setProperty(mediaVocabulary.musicTrackNumber(), Nepomuk::Variant(track));
             }
-            res.setProperty(mediaVocabulary.musicGenre(), Nepomuk::Variant(genre));
             if (duration != 0) {
                 res.setProperty(mediaVocabulary.duration(), Nepomuk::Variant(duration));
+            }
+            if (year != 0) {
+                QDate created = QDate(year, 1, 1);
+                res.setProperty(mediaVocabulary.created(), Nepomuk::Variant(created));
             }
         } else if ((mediaItem.fields["audioType"] == "Audio Stream") ||
             (mediaItem.fields["audioType"] == "Audio Clip")) {
@@ -211,6 +253,13 @@ void MediaIndexerJob::indexMediaItem(MediaItem mediaItem)
             res.removeProperty(mediaVocabulary.videoIsTVShow());
             QString seriesName = mediaItem.fields["seriesName"].toString();
             res.setProperty(mediaVocabulary.videoSeriesName(), Nepomuk::Variant(seriesName));
+            QString genre   = mediaItem.fields["genre"].toString();
+            res.setProperty(mediaVocabulary.genre(), Nepomuk::Variant(genre));
+            int year = mediaItem.fields["year"].toInt();
+            if (year != 0) {
+                QDate created = QDate(year, 1, 1);
+                res.setProperty(mediaVocabulary.created(), Nepomuk::Variant(created));
+            }
         } else if (mediaItem.fields["videoType"] == "TV Show") {
             res.setProperty(mediaVocabulary.videoIsTVShow(), Nepomuk::Variant(true));
             res.removeProperty(mediaVocabulary.videoIsMovie());
@@ -228,8 +277,82 @@ void MediaIndexerJob::indexMediaItem(MediaItem mediaItem)
             } else {
                 res.removeProperty(mediaVocabulary.videoSeriesEpisode());
             }
+            QString genre   = mediaItem.fields["genre"].toString();
+            res.setProperty(mediaVocabulary.genre(), Nepomuk::Variant(genre));
+            int year = mediaItem.fields["year"].toInt();
+            if (year != 0) {
+                QDate created = QDate(year, 1, 1);
+                res.setProperty(mediaVocabulary.created(), Nepomuk::Variant(created));
+            }
         } else if (mediaItem.fields["videoType"] == "Video Clip") {
             //Remove properties identifying video as a movie or tv show
+            res.removeProperty(mediaVocabulary.videoIsMovie());
+            res.removeProperty(mediaVocabulary.videoIsTVShow());
+        }
+    }
+}
+
+void MediaIndexerJob::removeInfo(MediaItem mediaItem)
+{
+    kDebug() << "removing info for " << mediaItem.url;
+    //Update RDF store
+    MediaVocabulary mediaVocabulary = MediaVocabulary();
+    Nepomuk::Resource res(mediaItem.url);
+    if (!res.exists()) {
+        return;
+    }
+    if (mediaItem.type == "Audio") {
+        // Update the media type
+        QUrl audioType;
+        if (mediaItem.fields["audioType"] == "Music") {
+            audioType = mediaVocabulary.typeAudioMusic();
+        } else if (mediaItem.fields["audioType"] == "Audio Stream") {
+            audioType = mediaVocabulary.typeAudioStream();
+        } else if (mediaItem.fields["audioType"] == "Audio Clip") {
+            audioType = mediaVocabulary.typeAudio();
+        }
+        if (res.hasType(audioType)) {
+            removeType(res, audioType);
+        }
+        
+        // Update the properties
+        res.removeProperty(mediaVocabulary.title());
+        res.removeProperty(mediaVocabulary.description());
+        res.removeProperty(mediaVocabulary.artwork());
+
+        if (mediaItem.fields["audioType"] == "Music") {
+            res.removeProperty(mediaVocabulary.musicArtist());
+            res.removeProperty(mediaVocabulary.musicAlbumName());
+            res.removeProperty(mediaVocabulary.genre());
+            res.removeProperty(mediaVocabulary.musicTrackNumber());
+            res.removeProperty(mediaVocabulary.duration());
+            res.removeProperty(mediaVocabulary.created());
+        } else if ((mediaItem.fields["audioType"] == "Audio Stream") ||
+            (mediaItem.fields["audioType"] == "Audio Clip")) {
+        }
+    } else if (mediaItem.type == "Video") {
+        //Update the media type
+        if (res.hasType(mediaVocabulary.typeVideo())) {
+            removeType(res, mediaVocabulary.typeVideo());
+        }
+        
+        //Update the properties
+        res.removeProperty(mediaVocabulary.title());
+        res.removeProperty(mediaVocabulary.description());
+        res.removeProperty(mediaVocabulary.artwork());
+        if (mediaItem.fields["videoType"] == "Movie") {
+            res.removeProperty(mediaVocabulary.videoIsMovie());
+            res.removeProperty(mediaVocabulary.videoSeriesName());
+            res.removeProperty(mediaVocabulary.genre());
+            res.removeProperty(mediaVocabulary.created());
+        } else if (mediaItem.fields["videoType"] == "TV Show") {
+            res.removeProperty(mediaVocabulary.videoIsTVShow());
+            res.removeProperty(mediaVocabulary.videoSeriesName());
+            res.removeProperty(mediaVocabulary.videoSeriesSeason());
+            res.removeProperty(mediaVocabulary.videoSeriesEpisode());
+            res.removeProperty(mediaVocabulary.genre());
+            res.removeProperty(mediaVocabulary.created());
+        } else if (mediaItem.fields["videoType"] == "Video Clip") {
             res.removeProperty(mediaVocabulary.videoIsMovie());
             res.removeProperty(mediaVocabulary.videoIsTVShow());
         }
@@ -250,6 +373,12 @@ void MediaIndexerJob::removeType(Nepomuk::Resource res, QUrl mediaType)
 
 MediaIndexer::MediaIndexer(QObject * parent) : QThread(parent)
 {
+    Nepomuk::ResourceManager::instance()->init();
+    if (Nepomuk::ResourceManager::instance()->initialized()) {
+        m_nepomukInited = true; //resource manager inited successfully
+    } else {
+        m_nepomukInited = false; //no resource manager
+    }
 }
 
 MediaIndexer::~MediaIndexer()
@@ -258,24 +387,39 @@ MediaIndexer::~MediaIndexer()
 
 void MediaIndexer::run()
 {
-    if (m_indexType == MediaIndexer::IndexUrl) {
-        if (m_urls.count() > 0) {
-            MediaIndexerJob * indexerJob = new MediaIndexerJob(this);
-            indexerJob->setUrlsToIndex(m_urls);
-            KUiServerJobTracker * jt = new KUiServerJobTracker(this);
-            jt->registerJob(indexerJob);
-            indexerJob->start();
+    if (m_nepomukInited) {
+        if (m_indexType == MediaIndexer::IndexUrl) {
+            if (m_urls.count() > 0) {
+                MediaIndexerJob * indexerJob = new MediaIndexerJob(this);
+                indexerJob->setUrlsToIndex(m_urls);
+                KUiServerJobTracker * jt = new KUiServerJobTracker(this);
+                jt->registerJob(indexerJob);
+                indexerJob->start();
+            }
+        } else if (m_indexType == MediaIndexer::IndexMediaItem) {
+            if (m_mediaList.count() > 0) {
+                MediaIndexerJob * indexerJob = new MediaIndexerJob(this);
+                connect(indexerJob, SIGNAL(jobComplete()), this, SLOT(jobComplete()));
+                connect(indexerJob, SIGNAL(sourceInfoUpdated(MediaItem)), this, SIGNAL(sourceInfoUpdated(MediaItem)));
+                indexerJob->setMediaListToIndex(m_mediaList);
+                KUiServerJobTracker * jt = new KUiServerJobTracker(this);
+                jt->registerJob(indexerJob);
+                indexerJob->start();
+            }
+        } else if (m_indexType == MediaIndexer::RemoveInfo) {
+            if (m_mediaList.count() > 0) {
+                MediaIndexerJob * indexerJob = new MediaIndexerJob(this);
+                connect(indexerJob, SIGNAL(jobComplete()), this, SLOT(jobComplete()));
+                connect(indexerJob, SIGNAL(urlInfoRemoved(QString)), this, SIGNAL(urlInfoRemoved(QString)));
+                indexerJob->setInfoToRemove(m_mediaList);
+                KUiServerJobTracker * jt = new KUiServerJobTracker(this);
+                jt->registerJob(indexerJob);
+                indexerJob->start();
+            }
         }
-    } else if (m_indexType == MediaIndexer::IndexMediaItem) {
-        if (m_mediaList.count() > 0) {
-            MediaIndexerJob * indexerJob = new MediaIndexerJob(this);
-            connect(indexerJob, SIGNAL(jobComplete()), this, SLOT(jobComplete()));
-            indexerJob->setMediaListToIndex(m_mediaList);
-            KUiServerJobTracker * jt = new KUiServerJobTracker(this);
-            jt->registerJob(indexerJob);
-            indexerJob->start();
-        }
-    }   
+    } else {
+        emit indexingComplete();
+    }
 }
 
 void MediaIndexer::indexUrls(QList<QString> urls)
@@ -288,6 +432,13 @@ void MediaIndexer::indexUrls(QList<QString> urls)
 void MediaIndexer::indexMediaItems(QList<MediaItem> mediaList)
 {
     m_indexType = MediaIndexer::IndexMediaItem;
+    m_mediaList = mediaList;
+    start();
+}
+
+void MediaIndexer::removeInfo(QList<MediaItem> mediaList)
+{
+    m_indexType = MediaIndexer::RemoveInfo;
     m_mediaList = mediaList;
     start();
 }

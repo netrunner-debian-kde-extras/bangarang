@@ -31,15 +31,10 @@
 #include <Solid/Device>
 #include <Solid/DeviceInterface>
 #include <Solid/OpticalDisc>
+#include <Nepomuk/ResourceManager>
 
-MediaListsEngine::MediaListsEngine(ListEngineFactory * parent) : ListEngine(parent)
+MediaListsEngine::MediaListsEngine(ListEngineFactory * parent) : NepomukListEngine(parent)
 {
-    m_parent = parent;
-    
-    
-    m_requestSignature = QString();
-    m_subRequestSignature = QString();
-
 }
 
 MediaListsEngine::~MediaListsEngine()
@@ -57,30 +52,44 @@ void MediaListsEngine::run()
         mediaItem.url = "files://audio";
         mediaItem.artwork = KIcon("document-open-folder");
         mediaList << mediaItem;
-        mediaItem.title = "Artists";
-        mediaItem.url = "music://artists";
-        mediaItem.artwork = KIcon("system-users");
-        mediaList << mediaItem;
-        mediaItem.title = "Albums";
-        mediaItem.url = "music://albums";
-        mediaItem.artwork = KIcon("media-optical");
-        mediaList << mediaItem;
-        mediaItem.title = "Songs";
-        mediaItem.url = "music://songs";
-        mediaItem.artwork = KIcon("audio-mpeg");
-        mediaList << mediaItem;
-        mediaItem.title = "Genres";
-        mediaItem.url = "music://genres";
-        mediaItem.artwork = KIcon("flag-blue");
-        mediaList << mediaItem;
-        mediaItem.title = "Clips";
-        mediaItem.url = "audioclips://";
-        mediaItem.artwork = KIcon("audio-x-wav");
-        mediaList << mediaItem;
-        mediaItem.title = "Audio Streams";
-        mediaItem.url = "audiostreams://";
-        mediaItem.artwork = KIcon("x-media-podcast");
-        mediaList << mediaItem;
+        if (m_nepomukInited) {
+            mediaItem.title = "Artists";
+            mediaItem.url = "music://artists";
+            mediaItem.artwork = KIcon("system-users");
+            mediaList << mediaItem;
+            mediaItem.title = "Albums";
+            mediaItem.url = "music://albums";
+            mediaItem.artwork = KIcon("media-optical");
+            mediaList << mediaItem;
+            mediaItem.title = "Songs";
+            mediaItem.url = "music://songs";
+            mediaItem.artwork = KIcon("audio-mpeg");
+            mediaList << mediaItem;
+            mediaItem.title = "Genres";
+            mediaItem.url = "music://genres";
+            mediaItem.artwork = KIcon("flag-blue");
+            mediaList << mediaItem;
+            mediaItem.title = "Clips";
+            mediaItem.url = "audioclips://";
+            mediaItem.artwork = KIcon("audio-x-wav");
+            mediaList << mediaItem;
+            mediaItem.title = "Audio Streams";
+            mediaItem.url = "audiostreams://";
+            mediaItem.artwork = KIcon("x-media-podcast");
+            mediaList << mediaItem;
+            mediaItem.title = "Frequently Played";
+            mediaItem.url = "semantics://frequent?audio";
+            mediaItem.artwork = KIcon("office-chart-bar");
+            mediaList << mediaItem;
+            mediaItem.title = "Recently Played";
+            mediaItem.url = "semantics://recent?audio";
+            mediaItem.artwork = KIcon("chronometer");
+            mediaList << mediaItem;
+            mediaItem.title = "Highest Rated";
+            mediaItem.url = "semantics://highest?audio";
+            mediaItem.artwork = KIcon("rating");
+            mediaList << mediaItem;
+        }
         
         //Show Audio CD if present
         bool audioCDFound = false;
@@ -110,9 +119,20 @@ void MediaListsEngine::run()
                         if (nameUrl.at(0) == "Audio") {
                             mediaItem.title = nameUrl.at(1).trimmed();
                             mediaItem.url = nameUrl.at(2).trimmed();
-                            mediaItem.artwork = KIcon("view-media-playlist");
+                            if (mediaItem.url.startsWith("savedlists://")) {
+                                mediaItem.artwork = KIcon("view-list-text");
+                            } else {
+                                mediaItem.artwork = KIcon("view-media-playlist");
+                            }
                             mediaItem.isSavedList = true;
-                            mediaList << mediaItem;
+                            if (m_nepomukInited) {
+                                mediaList << mediaItem;
+                            } else {
+                                //Only show lists that aren't don't require nepomuk
+                                if (mediaItem.url.startsWith("savedlists://")) {
+                                    mediaList << mediaItem;
+                                }
+                            }
                         }
                     }
                 }
@@ -127,18 +147,36 @@ void MediaListsEngine::run()
         mediaItem.url = "files://video";
         mediaItem.artwork = KIcon("document-open-folder");
         mediaList << mediaItem;
-        mediaItem.title = "Movies";
-        mediaItem.url = "video://movies";
-        mediaItem.artwork = KIcon("tool-animator");
-        mediaList << mediaItem;
-        mediaItem.title = "TV Shows";
-        mediaItem.url = "video://tvshows";
-        mediaItem.artwork = KIcon("video-television");
-        mediaList << mediaItem;
-        mediaItem.title = "Video Clips";
-        mediaItem.url = "video://clips";
-        mediaItem.artwork = KIcon("video-x-generic");
-        mediaList << mediaItem;
+        if (m_nepomukInited) {
+            mediaItem.title = "Movies";
+            mediaItem.url = "video://movies";
+            mediaItem.artwork = KIcon("tool-animator");
+            mediaList << mediaItem;
+            mediaItem.title = "Genres";
+            mediaItem.url = "video://genres";
+            mediaItem.artwork = KIcon("flag-green");
+            mediaList << mediaItem;
+            mediaItem.title = "TV Shows";
+            mediaItem.url = "video://tvshows";
+            mediaItem.artwork = KIcon("video-television");
+            mediaList << mediaItem;
+            mediaItem.title = "Video Clips";
+            mediaItem.url = "video://clips";
+            mediaItem.artwork = KIcon("video-x-generic");
+            mediaList << mediaItem;
+            mediaItem.title = "Frequently Played";
+            mediaItem.url = "semantics://frequent?video";
+            mediaItem.artwork = KIcon("office-chart-bar");
+            mediaList << mediaItem;
+            mediaItem.title = "Recently Played";
+            mediaItem.url = "semantics://recent?video";
+            mediaItem.artwork = KIcon("chronometer");
+            mediaList << mediaItem;
+            mediaItem.title = "Highest Rated";
+            mediaItem.url = "semantics://highest?video";
+            mediaItem.artwork = KIcon("rating");
+            mediaList << mediaItem;
+        }
         
         //Show DVD if present
         bool DVDFound = false;
@@ -168,9 +206,20 @@ void MediaListsEngine::run()
                         if (nameUrl.at(0) == "Video") {
                             mediaItem.title = nameUrl.at(1).trimmed();
                             mediaItem.url = nameUrl.at(2).trimmed();
-                            mediaItem.artwork = KIcon("view-media-playlist");
+                            if (mediaItem.url.startsWith("savedlists://")) {
+                                mediaItem.artwork = KIcon("view-list-text");
+                            } else {
+                                mediaItem.artwork = KIcon("view-media-playlist");
+                            }
                             mediaItem.isSavedList = true;
-                            mediaList << mediaItem;
+                            if (m_nepomukInited) {
+                                mediaList << mediaItem;
+                            } else {
+                                //Only show lists that aren't don't require nepomuk
+                                if (mediaItem.url.startsWith("savedlists://")) {
+                                    mediaList << mediaItem;
+                                }
+                            }
                         }
                     }
                 }
@@ -183,34 +232,4 @@ void MediaListsEngine::run()
     m_subRequestSignature = QString();
     m_loadWhenReady = false;
     //exec();    
-}
-
-void MediaListsEngine::setMediaListProperties(MediaListProperties mediaListProperties)
-{
-    m_mediaListProperties = mediaListProperties;
-}
-
-MediaListProperties MediaListsEngine::mediaListProperties()
-{
-    return m_mediaListProperties;
-}
-
-void MediaListsEngine::setFilterForSources(QString engineFilter)
-{
-    Q_UNUSED(engineFilter);
-}
-
-void MediaListsEngine::setRequestSignature(QString requestSignature)
-{
-    m_requestSignature = requestSignature;
-}
-
-void MediaListsEngine::setSubRequestSignature(QString subRequestSignature)
-{
-    m_subRequestSignature = subRequestSignature;
-}
-
-void MediaListsEngine::activateAction()
-{
-        
 }

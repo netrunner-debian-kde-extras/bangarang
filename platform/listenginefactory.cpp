@@ -26,11 +26,15 @@
 #include "savedlistsengine.h"
 #include "medialistsengine.h"
 #include "audiostreamlistengine.h"
+#include "semanticslistengine.h"
+#include "cachelistengine.h"
+#include "audioclipslistengine.h"
+#include <KDebug>
 
 ListEngineFactory::ListEngineFactory(MediaItemModel * parent) : QObject(parent)
 {
     m_parent = parent;
-    m_engines << "music://" << "files://" << "video://" << "cdaudio://" << "dvdvideo://" << "savedlists://" << "medialists://" << "audiostreams://";
+    m_engines << "music://" << "files://" << "video://" << "cdaudio://" << "dvdvideo://" << "savedlists://" << "medialists://" << "audiostreams://" << "semantics://" << "cache://" << "audioclips://";
 }
 
 ListEngineFactory::~ListEngineFactory()
@@ -39,65 +43,67 @@ ListEngineFactory::~ListEngineFactory()
         if (!m_musicListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_musicListEngines.at(i)->terminate();
-            m_musicListEngines.at(i)->wait();
         }
-        delete m_musicListEngines.at(i);
     }
     for (int i = 0; i < m_fileListEngines.count(); ++i) {
         if (!m_fileListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_fileListEngines.at(i)->terminate();
-            m_fileListEngines.at(i)->wait();
         }
-        delete m_fileListEngines.at(i);
     }
     for (int i = 0; i < m_videoListEngines.count(); ++i) {
         if (!m_videoListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_videoListEngines.at(i)->terminate();
-            m_videoListEngines.at(i)->wait();
         }
-        delete m_videoListEngines.at(i);
     }
     for (int i = 0; i < m_cdListEngines.count(); ++i) {
         if (!m_cdListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_cdListEngines.at(i)->terminate();
-            m_cdListEngines.at(i)->wait();
         }
-        delete m_cdListEngines.at(i);
     }
     for (int i = 0; i < m_dvdListEngines.count(); ++i) {
         if (!m_dvdListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_dvdListEngines.at(i)->terminate();
-            m_dvdListEngines.at(i)->wait();
         }
-        delete m_dvdListEngines.at(i);
     }
     for (int i = 0; i < m_savedListsEngines.count(); ++i) {
         if (!m_savedListsEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_savedListsEngines.at(i)->terminate();
-            m_savedListsEngines.at(i)->wait();
         }
-        delete m_savedListsEngines.at(i);
     }
     for (int i = 0; i < m_mediaListsEngines.count(); ++i) {
         if (!m_mediaListsEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_mediaListsEngines.at(i)->terminate();
-            m_mediaListsEngines.at(i)->wait();
         }
-        delete m_mediaListsEngines.at(i);
     }
     for (int i = 0; i < m_audioStreamListEngines.count(); ++i) {
         if (!m_audioStreamListEngines.at(i)->isFinished()) {
             //This could be dangerous but list engines can't be left running after main program termination
             m_audioStreamListEngines.at(i)->terminate();
-            m_audioStreamListEngines.at(i)->wait();
         }
-        delete m_audioStreamListEngines.at(i);
+    }
+    for (int i = 0; i < m_semanticsListEngines.count(); ++i) {
+        if (!m_semanticsListEngines.at(i)->isFinished()) {
+            //This could be dangerous but list engines can't be left running after main program termination
+            m_semanticsListEngines.at(i)->terminate();
+        }
+    }
+    for (int i = 0; i < m_cacheListEngines.count(); ++i) {
+        if (!m_cacheListEngines.at(i)->isFinished()) {
+            //This could be dangerous but list engines can't be left running after main program termination
+            m_cacheListEngines.at(i)->terminate();
+        }
+    }
+    for (int i = 0; i < m_audioClipsListEngines.count(); ++i) {
+        if (!m_audioClipsListEngines.at(i)->isFinished()) {
+            //This could be dangerous but list engines can't be left running after main program termination
+            m_audioClipsListEngines.at(i)->terminate();
+        }
     }
 }
 
@@ -239,6 +245,57 @@ ListEngine * ListEngineFactory::availableListEngine(QString engine)
         }
         audioStreamListEngine->setModel(m_parent);
         return audioStreamListEngine;        
+    } else if (engine.toLower() == "semantics://") {
+        //Search for available list engine
+        bool foundListEngine = false;
+        SemanticsListEngine * semanticsListEngine;
+        for (int i = 0; i < m_semanticsListEngines.count(); ++i) {
+            if (!m_semanticsListEngines.at(i)->isRunning()) {
+                foundListEngine = true;
+                semanticsListEngine = m_semanticsListEngines.at(i);
+                break;
+            }
+        }
+        if (!foundListEngine) {
+            semanticsListEngine = new SemanticsListEngine(this);
+            m_semanticsListEngines << semanticsListEngine;
+        }
+        semanticsListEngine->setModel(m_parent);
+        return semanticsListEngine;        
+    } else if (engine.toLower() == "cache://") {
+        //Search for available list engine
+        bool foundListEngine = false;
+        CacheListEngine * cacheListEngine;
+        for (int i = 0; i < m_cacheListEngines.count(); ++i) {
+            if (!m_cacheListEngines.at(i)->isRunning()) {
+                foundListEngine = true;
+                cacheListEngine = m_cacheListEngines.at(i);
+                break;
+            }
+        }
+        if (!foundListEngine) {
+            cacheListEngine = new CacheListEngine(this);
+            m_cacheListEngines << cacheListEngine;
+        }
+        cacheListEngine->setModel(m_parent);
+        return cacheListEngine;        
+    } else if (engine.toLower() == "audioclips://") {
+        //Search for available list engine
+        bool foundListEngine = false;
+        AudioClipsListEngine * audioClipsListEngine;
+        for (int i = 0; i < m_audioClipsListEngines.count(); ++i) {
+            if (!m_audioClipsListEngines.at(i)->isRunning()) {
+                foundListEngine = true;
+                audioClipsListEngine = m_audioClipsListEngines.at(i);
+                break;
+            }
+        }
+        if (!foundListEngine) {
+            audioClipsListEngine = new AudioClipsListEngine(this);
+            m_audioClipsListEngines << audioClipsListEngine;
+        }
+        audioClipsListEngine->setModel(m_parent);
+        return audioClipsListEngine;        
     }
     return new ListEngine(this);
 }

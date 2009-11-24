@@ -27,6 +27,7 @@
 class MusicListEngine;
 class FileListEngine;
 class ListEngineFactory;
+class MediaListCache;
 
 struct MediaItem {
     enum MediaItemRole { UrlRole = Qt::UserRole + 1,
@@ -37,7 +38,8 @@ struct MediaItem {
     FilterRole = Qt::UserRole + 6,
     PlaylistIndexRole = Qt::UserRole + 7, 
     NowPlayingRole = Qt::UserRole + 8,
-    IsSavedListRole = Qt::UserRole + 9 };
+    IsSavedListRole = Qt::UserRole + 9,
+    ExistsRole = Qt::UserRole + 10 };
     QIcon artwork;
     QString title;
     QString subTitle;
@@ -48,13 +50,18 @@ struct MediaItem {
     int playlistIndex;
     bool nowPlaying;
     bool isSavedList;
+    bool exists;
     QHash <QString, QVariant> fields;
+    MediaItem() : nowPlaying(false), isSavedList(false), exists(true) {}
 };
+
+Q_DECLARE_METATYPE(MediaItem);
 
 class MediaListProperties {
 
 public:
     QString name;
+    QString summary;
     QString lri;  //List Resource Identifier
     QString engine() {
         if (lri.indexOf("://") != -1) {
@@ -92,7 +99,7 @@ class MediaItemModel : public QStandardItemModel
         ~MediaItemModel();
         QString dataEngine();
         QString filter();
-        void clearMediaListData();
+        void clearMediaListData(bool emitMediaListChanged = false);
         void load();
         QList<MediaItem> mediaList();
         void loadMediaList(QList<MediaItem>, bool emitMediaListChanged = false);
@@ -105,6 +112,12 @@ class MediaItemModel : public QStandardItemModel
         void removeMediaItemAt(int row, bool emitMediaListChanged = false);
         void replaceMediaItemAt(int row, MediaItem mediaItem, bool emitMediaListChanged = false);
         void setListEngineFactory(ListEngineFactory * listEngineFactory);
+        void removeSourceInfo(QList<MediaItem> mediaList);
+        void updateSourceInfo(QList<MediaItem> mediaList);
+        void setMediaListCache(MediaListCache * mediaListCache);
+        MediaListCache * mediaListCache();
+        void setCacheThreshold(int msec);
+        int cacheThreshold();
 
         Qt::DropActions supportedDropActions() const;
         Qt::ItemFlags flags(const QModelIndex &index) const;
@@ -131,6 +144,11 @@ class MediaItemModel : public QStandardItemModel
         int m_loadingProgress;
         bool m_loadingState;
         void setLoadingState(bool state);
+        int m_cacheThreshold;
+        MediaListCache * m_mediaListCache;
+        bool m_forceRefreshFromSource;
+        QHash<QString, QTime> m_lriStartTimes;
+        QList<QString> m_lrisLoading;
         
     Q_SIGNALS:
         void propertiesChanged(); 
@@ -146,6 +164,9 @@ class MediaItemModel : public QStandardItemModel
     public Q_SLOTS:
         void addResults(QString requestSignature, QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done, QString subRequestSignature);
         void reload();
+        void updateMediaItems(QList<MediaItem> mediaList);
+        void updateMediaItem(MediaItem mediaItem);
+        void removeMediaItem(QString url);
 };
 
 #endif // MEDIAITEMMODEL_H

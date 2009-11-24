@@ -20,6 +20,7 @@
 #include "videolistengine.h"
 #include "listenginefactory.h"
 #include "mediavocabulary.h"
+#include "utilities.h"
 
 #include <Soprano/QueryResultIterator>
 #include <Soprano/Vocabulary/Xesam>
@@ -34,21 +35,8 @@
 #include <nepomuk/variant.h>
 
 
-VideoListEngine::VideoListEngine(ListEngineFactory * parent) : ListEngine(parent)
+VideoListEngine::VideoListEngine(ListEngineFactory * parent) : NepomukListEngine(parent)
 {
-    m_parent = parent;    
-    
-    Nepomuk::ResourceManager::instance()->init();
-    if (Nepomuk::ResourceManager::instance()->initialized()) {
-        //resource manager inited successfully
-    } else {
-        //no resource manager
-    };
-    
-    m_mainModel = Nepomuk::ResourceManager::instance()->mainModel();
-    m_requestSignature = QString();
-    m_subRequestSignature = QString();
-    
 }
 
 VideoListEngine::~VideoListEngine()
@@ -57,7 +45,10 @@ VideoListEngine::~VideoListEngine()
 
 MediaItem VideoListEngine::createMediaItem(Soprano::QueryResultIterator& it) {
     MediaItem mediaItem;
-    mediaItem.url = it.binding("r").uri().toString();
+    QUrl url = it.binding("url").uri().isEmpty() ? 
+                    it.binding("r").uri() :
+                    it.binding("url").uri();
+    mediaItem.url = url.toString();
     mediaItem.title = it.binding("title").literal().toString();
     if (mediaItem.title.isEmpty()) {
         if (KUrl(mediaItem.url).isLocalFile()) {
@@ -82,9 +73,8 @@ MediaItem VideoListEngine::createMediaItem(Soprano::QueryResultIterator& it) {
         mediaItem.fields["season"] = season;
         if (!mediaItem.subTitle.isEmpty()) {
             mediaItem.subTitle += " - ";
-        } else {
-            mediaItem.subTitle += QString("Season %1").arg(season);
         }
+        mediaItem.subTitle += QString("Season %1").arg(season);
     }
 
     int episode = it.binding("episode").literal().toInt();
@@ -96,12 +86,19 @@ MediaItem VideoListEngine::createMediaItem(Soprano::QueryResultIterator& it) {
         mediaItem.subTitle += QString("Episode %1").arg(episode);
     }
 
+    if (it.binding("created").isValid()) {
+        QDate created = it.binding("created").literal().toDate();
+        if (created.isValid()) {
+            mediaItem.fields["year"] = created.year();
+        }
+    }
     mediaItem.type = "Video";
     mediaItem.nowPlaying = false;
     mediaItem.fields["url"] = mediaItem.url;
     mediaItem.fields["title"] = it.binding("title").literal().toString();
     mediaItem.fields["duration"] = it.binding("duration").literal().toInt();
     mediaItem.fields["description"] = it.binding("description").literal().toString();
+    mediaItem.fields["genre"] = it.binding("genre").literal().toString();
     mediaItem.fields["artworkUrl"] = it.binding("artwork").uri().toString();
     mediaItem.fields["rating"] = it.binding("rating").literal().toInt();
 
@@ -119,299 +116,351 @@ void VideoListEngine::run()
     
     QString engineArg = m_mediaListProperties.engineArg();
     QString engineFilter = m_mediaListProperties.engineFilter();
-    if (engineArg.toLower() == "clips") {
-        VideoQuery videoQuery = VideoQuery(true);
-        videoQuery.selectResource();
-        videoQuery.selectTitle();
-        videoQuery.selectDuration(true);
-        videoQuery.selectSeason(true);
-        videoQuery.selectDescription(true);
-        videoQuery.isTVShow(false);
-        videoQuery.isMovie(false);
-        videoQuery.orderBy("?title");
-        
-        //Execute Query
-        Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
-        
-        //Build media list from results
-        while( it.next() ) {
-            MediaItem mediaItem = createMediaItem(it);
+    
+    if (m_nepomukInited) {
+        if (engineArg.toLower() == "clips") {
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectResource();
+            videoQuery.selectTitle();
+            videoQuery.selectDuration(true);
+            videoQuery.selectSeason(true);
+            videoQuery.selectDescription(true);
+            videoQuery.isTVShow(false);
+            videoQuery.isMovie(false);
+            videoQuery.orderBy("?title");
+            
+            //Execute Query
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+            
+            //Build media list from results
+            while( it.next() ) {
+                MediaItem mediaItem = createMediaItem(it);
 
-            mediaItem.artwork = KIcon("video-x-generic");
-            mediaItem.fields["videoType"] = "Video Clip";
-            mediaList.append(mediaItem);
-        }
-        
-        m_mediaListProperties.name = QString("Video Clips");
-        m_mediaListProperties.type = QString("Sources");
-    } else if (engineArg.toLower() == "tvshows") {
-    	VideoQuery query = VideoQuery(true);
-    	query.isTVShow(true);
-    	query.selectSeriesName();
-    	query.orderBy("?seriesName");
-		Soprano::QueryResultIterator it = query.executeSelect(m_mainModel);
+                mediaItem.artwork = KIcon("video-x-generic");
+                mediaItem.fields["videoType"] = "Video Clip";
+                mediaList.append(mediaItem);
+            }
+            
+            m_mediaListProperties.name = QString("Video Clips");
+            m_mediaListProperties.summary = QString("%1 items").arg(mediaList.count());
+            m_mediaListProperties.type = QString("Sources");
+        } else if (engineArg.toLower() == "tvshows") {
+            VideoQuery query = VideoQuery(true);
+            query.isTVShow(true);
+            query.selectSeriesName();
+            query.orderBy("?seriesName");
+            Soprano::QueryResultIterator it = query.executeSelect(m_mainModel);
 
-        //Build media list from results
-        while( it.next() ) {
-            QString name = it.binding("seriesName").literal().toString();
-            if (!name.isEmpty()) {
+            //Build media list from results
+            while( it.next() ) {
+                QString name = it.binding("seriesName").literal().toString();
+                if (!name.isEmpty()) {
+                    MediaItem mediaItem;
+                    mediaItem.url = QString("video://seasons?%1").arg(name);
+                    mediaItem.title = name;
+                    mediaItem.type = QString("Category");
+                    mediaItem.nowPlaying = false;
+                    mediaItem.artwork = KIcon("video-television");
+                    mediaList.append(mediaItem);
+                }
+            }
+
+
+            /* Check, whether there are videos which have the TV show flag set,
+             * but no series name is entered. If so, add an entry which allows
+             * access to those files.
+             */
+            VideoQuery noSeriesQuery = VideoQuery();
+            noSeriesQuery.isTVShow(true);
+            noSeriesQuery.hasNoSeriesName();
+
+            if(noSeriesQuery.executeAsk(m_mainModel)) {
                 MediaItem mediaItem;
-                mediaItem.url = QString("video://seasons?%1").arg(name);
-                mediaItem.title = name;
+                mediaItem.url = QString("video://episodes?||");
+                mediaItem.title = QString("Uncategorized TV Shows");
                 mediaItem.type = QString("Category");
                 mediaItem.nowPlaying = false;
                 mediaItem.artwork = KIcon("video-television");
                 mediaList.append(mediaItem);
             }
-        }
 
+            m_mediaListProperties.name = QString("TV Shows");
+            m_mediaListProperties.summary = QString("%1 shows").arg(mediaList.count());
+            m_mediaListProperties.type = QString("Categories");
+        } else if (engineArg.toLower() == "seasons") {
+            QString seriesName = engineFilter;
 
-        /* Check, whether there are videos which have the TV show flag set,
-         * but no series name is entered. If so, add an entry which allows
-         * access to those files.
-         */
-        VideoQuery noSeriesQuery = VideoQuery();
-        noSeriesQuery.isTVShow(true);
-        noSeriesQuery.hasNoSeriesName();
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectSeason();
+            videoQuery.isTVShow(true);
+            videoQuery.hasSeriesName(seriesName);
+            videoQuery.orderBy("?season");
 
-        if(noSeriesQuery.executeAsk(m_mainModel)) {
-			MediaItem mediaItem;
-			mediaItem.url = QString("video://episodes?||");
-			mediaItem.title = QString("Uncategorized TV Shows");
-			mediaItem.type = QString("Category");
-			mediaItem.nowPlaying = false;
-			mediaItem.artwork = KIcon("video-television");
-			mediaList.append(mediaItem);
-        }
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
 
-        m_mediaListProperties.name = QString("TV Shows");
-        m_mediaListProperties.type = QString("Categories");
-    } else if (engineArg.toLower() == "seasons") {
-        QString seriesName = engineFilter;
+            //Build media list from results
+            while( it.next() ) {
+                int season = it.binding("season").literal().toInt();
+                MediaItem mediaItem;
+                mediaItem.url = QString("video://episodes?%1||%2")
+                        .arg(seriesName).arg(season);
+                mediaItem.title = seriesName;
+                mediaItem.subTitle = QString("Season %1").arg(season);
+                mediaItem.type = QString("Category");
+                mediaItem.nowPlaying = false;
+                mediaItem.artwork = KIcon("video-television");
+                mediaList.append(mediaItem);
+            }
 
-    	VideoQuery videoQuery = VideoQuery(true);
-    	videoQuery.selectSeason();
-    	videoQuery.isTVShow(true);
-    	videoQuery.hasSeriesName(seriesName);
-    	videoQuery.orderBy("?season");
+            /* Check, whether there are TV shows, which have no series entered.
+             * If so, add an entry which allows access to those files.
+             */
+            VideoQuery noSeasonsQuery = VideoQuery();
+            noSeasonsQuery.isTVShow(true);
+            noSeasonsQuery.hasSeriesName(seriesName);
+            noSeasonsQuery.hasNoSeason();
 
-        Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+            if(noSeasonsQuery.executeAsk(m_mainModel)) {
+                MediaItem mediaItem;
+                mediaItem.url = QString("video://episodes?%1||").arg(seriesName);
+                mediaItem.title = seriesName;
+                mediaItem.subTitle = QString("Uncategorized seasons");
+                mediaItem.type = QString("Category");
+                mediaItem.nowPlaying = false;
+                mediaItem.artwork = KIcon("video-television");
+                mediaList.append(mediaItem);
+            }
 
-        //Build media list from results
-        while( it.next() ) {
-            int season = it.binding("season").literal().toInt();
-			MediaItem mediaItem;
-			mediaItem.url = QString("video://episodes?%1||%2")
-					.arg(seriesName).arg(season);
-			mediaItem.title = seriesName;
-			mediaItem.subTitle = QString("Season %1").arg(season);
-			mediaItem.type = QString("Category");
-			mediaItem.nowPlaying = false;
-			mediaItem.artwork = KIcon("video-television");
-			mediaList.append(mediaItem);
-        }
-
-        /* Check, whether there are TV shows, which have no series entered.
-         * If so, add an entry which allows access to those files.
-         */
-        VideoQuery noSeasonsQuery = VideoQuery();
-        noSeasonsQuery.isTVShow(true);
-        noSeasonsQuery.hasSeriesName(seriesName);
-        noSeasonsQuery.hasNoSeason();
-
-        if(noSeasonsQuery.executeAsk(m_mainModel)) {
-			MediaItem mediaItem;
-			mediaItem.url = QString("video://episodes?%1||").arg(seriesName);
-			mediaItem.title = seriesName;
-			mediaItem.subTitle = QString("Uncategorized seasons");
-			mediaItem.type = QString("Category");
-			mediaItem.nowPlaying = false;
-			mediaItem.artwork = KIcon("video-television");
-			mediaList.append(mediaItem);
-        }
-
-        m_mediaListProperties.name = QString("%1 - Seasons").arg(seriesName);
-        m_mediaListProperties.type = QString("Categories");
-    } else if (engineArg.toLower() == "episodes") {
-        QString seriesName;
-        int season = 0;
-        bool hasSeason = false;
-        
-        //Parse filter
-        if (!engineFilter.isNull()) {
-            QStringList argList = engineFilter.split("||");
-            seriesName = argList.at(0);
-            hasSeason = !argList.at(1).isEmpty();
-            if (hasSeason)
-            	season = argList.at(1).toInt();
-        }
-        
-    	VideoQuery videoQuery = VideoQuery(true);
-    	videoQuery.selectResource();
-    	videoQuery.selectTitle();
-    	videoQuery.isTVShow(true);
-    	if (!seriesName.isEmpty()) {
-    		videoQuery.hasSeriesName(seriesName);
-    	} else {
-    		videoQuery.hasNoSeriesName();
-    	}
-    	if (hasSeason) {
-    		videoQuery.hasSeason(season);
-    	} else {
-    		videoQuery.hasNoSeason();
-    	}
-    	videoQuery.selectDuration(true);
-    	videoQuery.selectDescription(true);
-        videoQuery.selectRating(true);
-        videoQuery.selectEpisode(true);
-        videoQuery.selectArtwork(true);
-    	videoQuery.orderBy("?episode");
-
-
-        //Execute Query
-        Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
-
-        //Build media list from results
-        while( it.next() ) {
-            MediaItem mediaItem = createMediaItem(it);
-
+            m_mediaListProperties.name = QString("%1").arg(seriesName);
+            m_mediaListProperties.summary = QString("%1 seasons").arg(mediaList.count());
+            
+            m_mediaListProperties.type = QString("Categories");
+        } else if (engineArg.toLower() == "episodes") {
+            QString seriesName;
+            int season = 0;
+            bool hasSeason = false;
+            
+            //Parse filter
+            if (!engineFilter.isNull()) {
+                QStringList argList = engineFilter.split("||");
+                seriesName = argList.at(0);
+                hasSeason = !argList.at(1).isEmpty();
+                if (hasSeason)
+                    season = argList.at(1).toInt();
+            }
+            
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectResource();
+            videoQuery.selectTitle();
+            videoQuery.isTVShow(true);
+            videoQuery.selectSeriesName(true);
+            videoQuery.selectSeason(true);
             if (!seriesName.isEmpty()) {
-                mediaItem.fields["seriesName"] = seriesName;
+                videoQuery.hasSeriesName(seriesName);
+            } else {
+                videoQuery.hasNoSeriesName();
             }
-            if (season != 0) {
-                mediaItem.fields["season"] = season;
+            if (hasSeason) {
+                videoQuery.hasSeason(season);
+            } else {
+                videoQuery.hasNoSeason();
             }
+            videoQuery.selectDuration(true);
+            videoQuery.selectDescription(true);
+            videoQuery.selectRating(true);
+            videoQuery.selectEpisode(true);
+            videoQuery.selectCreated(true);
+            videoQuery.selectGenre(true);
+            videoQuery.selectArtwork(true);
+            videoQuery.orderBy("?episode ?created");
 
-            mediaItem.artwork = KIcon("video-television");
-            mediaItem.fields["videoType"] = "TV Show";
-            mediaList.append(mediaItem);
-        }
-        
-        if (seriesName.isEmpty()) {
-			m_mediaListProperties.name = QString("Uncategorized TV Shows");
-        } else if (hasSeason) {
-			m_mediaListProperties.name = QString("%1 - Season %2 - Episodes")
-				.arg(seriesName)
-				.arg(season);
-        } else {
-			m_mediaListProperties.name = QString(
-					"%1 - Uncategorized Seasons - Episodes")
-				.arg(seriesName);
-        }
-        m_mediaListProperties.type = QString("Sources");
-        
-    } else if (engineArg.toLower() == "movies") {
-        VideoQuery videoQuery = VideoQuery(true);
-        videoQuery.selectResource();
-        videoQuery.selectTitle();
-        videoQuery.isMovie(true);
-        videoQuery.selectDescription(true);
-        videoQuery.selectSeriesName(true);
-        videoQuery.selectRating(true);
-        videoQuery.selectDuration(true);
-        videoQuery.selectArtwork(true);
-        videoQuery.orderBy("?title");
 
-        //Execute Query
-        Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
-        
-        //Build media list from results
-        while( it.next() ) {
-            MediaItem mediaItem = createMediaItem(it);
-            mediaItem.artwork = KIcon("tool-animator");
-            mediaItem.fields["videoType"] = "Movie";
-            mediaList.append(mediaItem);
+            //Execute Query
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+
+            //Build media list from results
+            while( it.next() ) {
+                MediaItem mediaItem = createMediaItem(it);
+
+                if (!seriesName.isEmpty()) {
+                    mediaItem.fields["seriesName"] = seriesName;
+                }
+                if (season != 0) {
+                    mediaItem.fields["season"] = season;
+                }
+
+                mediaItem.artwork = KIcon("video-television");
+                mediaItem.fields["videoType"] = "TV Show";
+                mediaList.append(mediaItem);
+            }
+            
+            if (seriesName.isEmpty()) {
+                m_mediaListProperties.name = QString("Uncategorized TV Shows");
+                m_mediaListProperties.summary = QString("%1 items").arg(mediaList.count());
+            } else if (hasSeason) {
+                m_mediaListProperties.name = QString("%1 - Season %2")
+                    .arg(seriesName)
+                    .arg(season);
+                m_mediaListProperties.summary = QString("%1 episodes").arg(mediaList.count());
+            } else {
+                m_mediaListProperties.name = QString(
+                        "%1 - Uncategorized Seasons")
+                    .arg(seriesName);
+                    m_mediaListProperties.summary = QString("%1 episodes").arg(mediaList.count());
+            }
+            m_mediaListProperties.type = QString("Sources");
+            
+        } else if (engineArg.toLower() == "movies") {
+            QString genre;
+            
+            //Parse filter
+            if (!engineFilter.isNull()) {
+                QStringList argList = engineFilter.split("||");
+                genre = argList.at(0);
+            }
+            
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectResource();
+            videoQuery.selectTitle();
+            videoQuery.isMovie(true);
+            videoQuery.selectDescription(true);
+            videoQuery.selectSeriesName(true);
+            videoQuery.selectRating(true);
+            videoQuery.selectDuration(true);
+            videoQuery.selectCreated(true);
+            videoQuery.selectGenre(true);
+            videoQuery.selectArtwork(true);
+            if (!genre.isEmpty()) {
+                videoQuery.hasGenre(genre);
+            }
+            videoQuery.orderBy("?title ?created");
+
+            //Execute Query
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+            
+            //Build media list from results
+            while( it.next() ) {
+                MediaItem mediaItem = createMediaItem(it);
+                mediaItem.artwork = KIcon("tool-animator");
+                mediaItem.fields["videoType"] = "Movie";
+                mediaList.append(mediaItem);
+            }
+            
+            m_mediaListProperties.name = QString("Movies");
+            if (!genre.isEmpty()) {
+                m_mediaListProperties.name = QString("Movies - %1").arg(genre);
+            }
+            m_mediaListProperties.summary = QString("%1 movies").arg(mediaList.count());
+            m_mediaListProperties.type = QString("Sources");
+            
+        } else if (engineArg.toLower() == "genres") {
+            QString genre;
+            
+            //Parse filter
+            if (!engineFilter.isNull()) {
+                QStringList argList = engineFilter.split("||");
+                genre = argList.at(0);
+            }
+            
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectGenre();
+            videoQuery.isMovie(true);
+            if (!genre.isEmpty()) {
+                videoQuery.hasGenre(genre);
+            }
+            videoQuery.orderBy("?genre");
+            
+            //Execute Query
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+            
+            //Build media list from results
+            while( it.next() ) {
+                QString genre = it.binding("genre").literal().toString().trimmed();
+                if (!genre.isEmpty()) {
+                    MediaItem mediaItem;
+                    mediaItem.url = QString("video://movies?%1").arg(genre);
+                    mediaItem.title = genre;
+                    mediaItem.type = QString("Category");
+                    mediaItem.nowPlaying = false;
+                    mediaItem.artwork = KIcon("flag-green");
+                    mediaList.append(mediaItem);
+                }
+            }
+            
+            m_mediaListProperties.name = QString("Genre");
+            m_mediaListProperties.summary = QString("%1 genres").arg(mediaList.count());
+            m_mediaListProperties.type = QString("Categories");
+            
+        } else if (engineArg.toLower() == "search") {
+            VideoQuery videoQuery = VideoQuery(true);
+            videoQuery.selectResource();
+            videoQuery.selectTitle(true);
+            videoQuery.selectDescription(true);
+            videoQuery.selectRating(true);
+            videoQuery.selectDuration(true);
+            videoQuery.selectSeriesName(true);
+            videoQuery.selectSeason(true);
+            videoQuery.selectEpisode(true);
+            videoQuery.selectCreated(true);
+            videoQuery.selectGenre(true);
+            videoQuery.selectIsMovie(true);
+            videoQuery.selectIsTVShow(true);
+            videoQuery.selectArtwork(true);
+            videoQuery.searchString(engineFilter);
+            videoQuery.orderBy("?title ?created");
+            
+            //Execute Query
+            Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
+            
+            //Build media list from results
+            while( it.next() ) {
+                MediaItem mediaItem = createMediaItem(it);
+                if (it.binding("isMovie").literal().toBool()) {
+                    mediaItem.artwork = KIcon("tool-animator");
+                    mediaItem.fields["videoType"] = "Movie";
+                } else if (it.binding("isTVShow").literal().toBool()) {
+                    mediaItem.artwork = KIcon("video-television");
+                    mediaItem.fields["videoType"] = "TV Show";
+                } else {
+                    mediaItem.artwork = KIcon("video-x-generic");
+                    mediaItem.fields["videoType"] = "Video Clip";
+                }
+                mediaList.append(mediaItem);
+            }
+            
+            if (mediaList.isEmpty()) {
+                MediaItem noResults;
+                noResults.url = "video://";
+                noResults.title = "No results";
+                noResults.type = "Message";
+                mediaList << noResults;
+            }
+            
+            m_mediaListProperties.summary = QString("%1 items").arg(mediaList.count());
+            m_mediaListProperties.type = QString("Sources");
+            
         }
-        
-        m_mediaListProperties.type = QString("Sources");
-        
-    } else if (engineArg.toLower() == "search") {
-        VideoQuery videoQuery = VideoQuery(true);
-        videoQuery.selectResource();
-        videoQuery.selectTitle(true);
-        videoQuery.selectDescription(true);
-        videoQuery.selectRating(true);
-        videoQuery.selectDuration(true);
-        videoQuery.selectSeriesName(true);
-        videoQuery.selectSeason(true);
-        videoQuery.selectEpisode(true);
-        videoQuery.selectIsMovie(true);
-        videoQuery.selectIsTVShow(true);
-        videoQuery.selectArtwork(true);
-        videoQuery.searchString(engineFilter);
-        videoQuery.orderBy("?title");
-        
-        //Execute Query
-        Soprano::QueryResultIterator it = videoQuery.executeSelect(m_mainModel);
-        
-        //Build media list from results
-        while( it.next() ) {
-            MediaItem mediaItem = createMediaItem(it);
-            if (it.binding("isMovie").literal().toBool()) {
-				mediaItem.artwork = KIcon("tool-animator");
-				mediaItem.fields["videoType"] = "Movie";
-			} else if (it.binding("isTVShow").literal().toBool()) {
-				mediaItem.artwork = KIcon("video-television");
-				mediaItem.fields["videoType"] = "TV Show";
-			} else {
-				mediaItem.artwork = KIcon("video-x-generic");
-				mediaItem.fields["videoType"] = "Video Clip";
-			}
-            mediaList.append(mediaItem);
-        }
-        
-        if (mediaList.isEmpty()) {
-            MediaItem noResults;
-            noResults.url = "video://";
-            noResults.title = "No results";
-            noResults.type = "Message";
-            mediaList << noResults;
-        }
-        
-        m_mediaListProperties.type = QString("Sources");
-        
     }
+    
     model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    
+    //Check if MediaItems in mediaList exist
+    QList<MediaItem> mediaItems = Utilities::mediaItemsDontExist(mediaList);
+    if (mediaItems.count() > 0) {
+        model()->updateMediaItems(mediaItems);
+    }
+    
     m_requestSignature = QString();
     m_subRequestSignature = QString();
     //exec();
     
 }
 
-void VideoListEngine::setMediaListProperties(MediaListProperties mediaListProperties)
-{
-    m_mediaListProperties = mediaListProperties;
-}
-
-MediaListProperties VideoListEngine::mediaListProperties()
-{
-    return m_mediaListProperties;
-}
-
-void VideoListEngine::setFilterForSources(QString engineFilter)
+void VideoListEngine::setFilterForSources(const QString& engineFilter)
 {
     //Always return songs
     m_mediaListProperties.lri = QString("video://?%1").arg(engineFilter);
 }
-
-void VideoListEngine::setRequestSignature(QString requestSignature)
-{
-    m_requestSignature = requestSignature;
-}
-
-void VideoListEngine::setSubRequestSignature(QString subRequestSignature)
-{
-    m_subRequestSignature = subRequestSignature;
-}
-
-void VideoListEngine::activateAction()
-{
-    
-}
-
-
-
-
 
 
 
@@ -474,6 +523,19 @@ void VideoQuery::selectDescription(bool optional) {
     		.arg(MediaVocabulary().description().toString()));
 }
 
+void VideoQuery::selectCreated(bool optional) {
+    m_selectCreated = true;
+    m_createdCondition = addOptional(optional,
+                                         QString("?r <%1> ?created . ")
+                                         .arg(MediaVocabulary().created().toString()));
+}
+void VideoQuery::selectGenre(bool optional) {
+    m_selectGenre = true;
+    m_genreCondition = addOptional(optional,
+                                         QString("?r <%1> ?genre . ")
+                                         .arg(MediaVocabulary().genre().toString()));
+}
+
 void VideoQuery::selectArtwork(bool optional) {
     m_selectArtwork = true;
     m_artworkCondition = addOptional(optional,
@@ -530,7 +592,8 @@ void VideoQuery::isMovie(bool flag) {
 }
 
 void VideoQuery::hasSeason(int season) {
-	m_seasonCondition = QString("?r <%1> %2 . ")
+	m_seasonCondition = QString("?r <%1> %2 . "
+                                "?r <%1> ?season . ")
     		.arg(MediaVocabulary().videoSeriesSeason().toString())
     		.arg(Soprano::Node::literalToN3(season));
 }
@@ -543,9 +606,17 @@ void VideoQuery::hasNoSeason() {
 }
 
 void VideoQuery::hasSeriesName(QString seriesName) {
-	m_seriesNameCondition = QString("?r <%1> %2 . ")
+	m_seriesNameCondition = QString("?r <%1> %2 . "
+                                    "?r <%1> ?seriesName . ")
     		.arg(MediaVocabulary().videoSeriesName().toString())
     		.arg(Soprano::Node::literalToN3(seriesName));
+}
+
+void VideoQuery::hasGenre(QString genre) {
+    m_genreCondition = QString("?r <%1> %2 . "
+                               "?r <%1> ?genre . ")
+    .arg(MediaVocabulary().genre().toString())
+    .arg(Soprano::Node::literalToN3(genre));
 }
 
 void VideoQuery::hasNoSeriesName() {
@@ -584,7 +655,8 @@ QString VideoQuery::getPrefix() {
     return QString("PREFIX xesam: <%1> "
 			"PREFIX rdf: <%2> "
 			"PREFIX nmm: <%3> "
-			"PREFIX xls: <%4> ")
+            "PREFIX xls: <%4> "
+            "PREFIX nie: <http://www.semanticdesktop.org/ontologies/2007/01/19/nie#> ")
 		.arg(Soprano::Vocabulary::Xesam::xesamNamespace().toString())
 		.arg(Soprano::Vocabulary::RDF::rdfNamespace().toString())
 		.arg("http://www.semanticdesktop.org/ontologies/nmm#")
@@ -598,7 +670,7 @@ Soprano::QueryResultIterator VideoQuery::executeSelect(Soprano::Model* model) {
     if (m_distinct)
     	queryString += "DISTINCT ";
     if (m_selectResource)
-    	queryString += "?r ";
+    	queryString += "?r ?url ";
     if (m_selectSeason)
     	queryString += "?season ";
     if (m_selectSeriesName)
@@ -611,6 +683,10 @@ Soprano::QueryResultIterator VideoQuery::executeSelect(Soprano::Model* model) {
     	queryString += "?episode ";
     if (m_selectDescription)
     	queryString += "?description ";
+    if (m_selectCreated)
+        queryString += "?created ";
+    if (m_selectGenre)
+        queryString += "?genre ";
     if (m_selectRating)
         queryString += "?rating ";
     if (m_selectIsTVShow)
@@ -620,7 +696,9 @@ Soprano::QueryResultIterator VideoQuery::executeSelect(Soprano::Model* model) {
     if (m_selectArtwork)
         queryString += "?artwork ";
     
-    queryString += QString("WHERE { ?r rdf:type <%1> . ")
+    //NOTE: nie:url is not in any released nie ontology that I can find.
+    //      In future KDE will use nfo:fileUrl so this will need to be changed.
+    queryString += QString("WHERE { ?r rdf:type <%1> . OPTIONAL { ?r nie:url ?url } . ")
 			.arg(MediaVocabulary().typeVideo().toString());
 
     queryString += m_seasonCondition;
@@ -629,6 +707,8 @@ Soprano::QueryResultIterator VideoQuery::executeSelect(Soprano::Model* model) {
     queryString += m_durationCondition;
     queryString += m_episodeCondition;
     queryString += m_descriptionCondition;
+    queryString += m_createdCondition;
+    queryString += m_genreCondition;
     queryString += m_ratingCondition;
     queryString += m_TVShowCondition;
     queryString += m_movieCondition;
@@ -654,6 +734,8 @@ bool VideoQuery::executeAsk(Soprano::Model* model) {
     queryString += m_durationCondition;
     queryString += m_episodeCondition;
     queryString += m_descriptionCondition;
+    queryString += m_createdCondition;
+    queryString += m_genreCondition;
     queryString += m_TVShowCondition;
     queryString += m_movieCondition;
     queryString += m_artworkCondition;

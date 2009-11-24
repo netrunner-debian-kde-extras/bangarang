@@ -16,8 +16,8 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#ifndef AUDIOSTREAMLISTENGINE_H
-#define AUDIOSTREAMLISTENGINE_H
+#ifndef AUDIOCLIPSLISTENGINE_H
+#define AUDIOCLIPSLISTENGINE_H
 
 #include "nepomuklistengine.h"
 #include <QtCore>
@@ -27,9 +27,9 @@ class MediaItem;
 class MediaListProperties;
 class ListEngineFactory;
 
-class AudioStreamQuery {
+class AudioClipsQuery {
     public:
-        AudioStreamQuery(bool distinct = true);
+        AudioClipsQuery(bool distinct = true);
         
         void selectResource();
         void selectTitle(bool optional=false);
@@ -68,16 +68,15 @@ class AudioStreamQuery {
         QString getPrefix();
 };
 
-class AudioStreamListEngine : public NepomukListEngine
+class AudioClipsListEngine : public NepomukListEngine
 {
     Q_OBJECT
     
     public:
-        AudioStreamListEngine(ListEngineFactory *parent);
-        ~AudioStreamListEngine();
+        AudioClipsListEngine(ListEngineFactory *parent);
+        ~AudioClipsListEngine();
         void run();
         void setFilterForSources(const QString& engineFilter);
-        void activateAction();
         
     private:
         MediaItem createMediaItem(Soprano::QueryResultIterator& it);
@@ -86,5 +85,5 @@ class AudioStreamListEngine : public NepomukListEngine
         void results(QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done);
         
 };
-#endif // AUDIOSTREAMLISTENGINE_H
+#endif // AUDIOCLIPSLISTENGINE_H
 
