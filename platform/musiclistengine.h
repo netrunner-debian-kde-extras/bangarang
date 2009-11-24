@@ -19,12 +19,9 @@
 #ifndef MUSICLISTENGINE_H
 #define MUSICLISTENGINE_H
 
-#include "listengine.h"
+#include "nepomuklistengine.h"
 #include <QtCore>
-#include <Nepomuk/Resource>
-#include <Nepomuk/ResourceManager>
 #include <Soprano/QueryResultIterator>
-#include <Soprano/Model>
 
 class MediaItem;
 class MediaListProperties;
@@ -39,6 +36,7 @@ class MusicQuery {
         void selectAlbum(bool optional=false);
         void selectTitle(bool optional=false);
         void selectDuration(bool optional=false);
+        void selectCreated(bool optional=false);
         void selectTrackNumber(bool optional=false);
         void selectGenre(bool optional=false);
         void selectRating(bool optional=false);
@@ -49,6 +47,8 @@ class MusicQuery {
         void hasNoArtist();
         void hasAlbum(QString album);
         void hasNoAlbum();
+        void hasGenre(QString genre);
+        void hasNoGenre();
         
         void searchString(QString str);
         
@@ -66,6 +66,7 @@ class MusicQuery {
         bool m_selectAlbum;
         bool m_selectTitle;
         bool m_selectDuration;
+        bool m_selectCreated;
         bool m_selectTrackNumber;
         bool m_selectGenre;
         bool m_selectRating;
@@ -76,6 +77,7 @@ class MusicQuery {
         QString m_albumCondition;
         QString m_titleCondition;
         QString m_durationCondition;
+        QString m_createdCondition;
         QString m_trackNumberCondition;
         QString m_genreCondition;
         QString m_searchCondition;
@@ -89,7 +91,7 @@ class MusicQuery {
         QString getPrefix();
 };
 
-class MusicListEngine : public ListEngine
+class MusicListEngine : public NepomukListEngine
 {
     Q_OBJECT
     
@@ -97,19 +99,10 @@ class MusicListEngine : public ListEngine
         MusicListEngine(ListEngineFactory *parent);
         ~MusicListEngine();
         void run();
-        void setMediaListProperties(MediaListProperties mediaListProperties);
-        MediaListProperties mediaListProperties();
-        void setFilterForSources(QString engineFilter);
-        void setRequestSignature(QString requestSignature);
-        void setSubRequestSignature(QString subRequestSignature);
-        void activateAction();
+        void setFilterForSources(const QString& engineFilter);
+        void updateSourceInfo(QList<MediaItem> mediaList);
         
     private:
-        ListEngineFactory * m_parent;
-        Soprano::Model * m_mainModel;
-        MediaListProperties m_mediaListProperties;
-        QString m_requestSignature;
-        QString m_subRequestSignature;
         MediaItem createMediaItem(Soprano::QueryResultIterator& it);
         
     Q_SIGNALS:

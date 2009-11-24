@@ -41,19 +41,9 @@ class SavedListsEngine : public ListEngine
         SavedListsEngine(ListEngineFactory *parent);
         ~SavedListsEngine();
         void run();
-        void setMediaListProperties(MediaListProperties mediaListProperties);
-        MediaListProperties mediaListProperties();
-        void setFilterForSources(QString engineFilter);
-        void setRequestSignature(QString requestSignature);
-        void setSubRequestSignature(QString subRequestSignature);
-        void activateAction();
         
     private:
-        ListEngineFactory * m_parent;
         Soprano::Model * m_mainModel;
-        MediaListProperties m_mediaListProperties;
-        QString m_requestSignature;
-        QString m_subRequestSignature;
     
     private slots:
         

@@ -33,6 +33,7 @@ class Playlist : public QObject
     public:
         enum Mode { Normal = 0, Shuffle = 1};
         enum Model { PlaylistModel = 0, QueueModel = 1};
+        enum State { LoadingComplete = 0, Loading = 1};
         Playlist(QObject * parent, Phonon::MediaObject * mediaObject);
         ~Playlist();
         MediaItemModel * playlistModel();
@@ -54,6 +55,7 @@ class Playlist : public QObject
         void addToQueue();
         void setRepeat(bool repeat);
         void buildQueueFrom(int playlistRow);
+        int loadingState();
         
     private:
         QObject * m_parent;
@@ -73,6 +75,8 @@ class Playlist : public QObject
         bool m_playlistFinished;
         void createUrlHistoryFromIndices();
         void updateNowPlaying();
+        bool m_nepomukInited;
+        int m_loadingState;
         
     public slots:
         void playNext();
@@ -84,9 +88,11 @@ class Playlist : public QObject
         void playlistChanged();
         void queueNextPlaylistItem();
         void confirmPlaylistFinished();
+        void stateChanged(Phonon::State newstate, Phonon::State oldstate);
         
     Q_SIGNALS:
         void playlistFinished();
+        void loading();
         
 };
 #endif // PLAYLIST_H

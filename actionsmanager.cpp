@@ -22,6 +22,7 @@
 #include "ui_mainwindow.h"
 #include "platform/mediaitemmodel.h"
 #include "platform/playlist.h"
+#include "infomanager.h"
 
 #include <KStandardDirs>
 #include <KMessageBox>
@@ -108,6 +109,17 @@ ActionsManager::ActionsManager(MainWindow * parent) : QObject(parent)
     m_cancelFullScreenHideControls->setShortcut(Qt::Key_Escape);
     connect(m_cancelFullScreenHideControls, SIGNAL(triggered()), this, SLOT(cancelFSHC()));
     m_parent->addAction(m_cancelFullScreenHideControls);
+
+    //Remove Info for Selected MediaItems
+    m_removeSelectedItemsInfo = new QAction(KIcon("edit-delete-shred"), tr("Remove selected info"), this);
+    connect(m_removeSelectedItemsInfo, SIGNAL(triggered()), m_parent->infoManager(), SLOT(removeSelectedItemsInfo()));
+    m_parent->addAction(m_removeSelectedItemsInfo);
+
+    //Refresh Media View
+    m_refreshMediaView = new QAction(KIcon("view-refresh"), tr("Refresh"), this);
+    m_refreshMediaView->setShortcut(Qt::Key_F5);
+    connect(m_refreshMediaView, SIGNAL(triggered()), m_parent->m_mediaItemModel, SLOT(reload()));
+    m_parent->addAction(m_refreshMediaView);
     
     //Edit Shortcuts
     //FIXME: Need to figure out how to use KShortcutsEditor
@@ -185,6 +197,61 @@ QAction * ActionsManager::editShortcuts()
 {
     return m_editShortcuts;
 }
+
+QAction * ActionsManager::removeSelectedItemsInfo()
+{
+    return m_removeSelectedItemsInfo;
+}
+
+QAction * ActionsManager::refreshMediaView()
+{
+    return m_refreshMediaView;
+}
+
+QMenu * ActionsManager::mediaViewMenu(bool showAbout)
+{
+    KHelpMenu * helpMenu = new KHelpMenu(m_parent, m_parent->aboutData(), false);
+    helpMenu->menu();
+    
+    QMenu *menu = new QMenu(m_parent);
+    QString type;
+    bool selection = false;
+    if (ui->mediaView->selectionModel()->selectedIndexes().count() != 0) {
+        QModelIndex index = ui->mediaView->selectionModel()->selectedIndexes().at(0);
+        type = index.data(MediaItem::TypeRole).toString();
+        selection = true;
+    } else if (m_parent->m_mediaItemModel->rowCount() > 0) {
+        type = m_parent->m_mediaItemModel->mediaItemAt(0).type;
+    }
+    bool isMedia = false;
+    if ((type == "Audio") ||(type == "Video") || (type == "Image")) {
+        isMedia = true;
+    }
+    bool isCategory = false;
+    if (type == "Category") {
+        isCategory = true;
+    }
+    if (isMedia || isCategory) {
+        if (selection && isMedia) {
+            menu->addAction(addSelectedToPlaylist());
+            menu->addAction(removeSelectedFromPlaylist());
+            menu->addSeparator();
+        }
+        if (selection) menu->addAction(playSelected());
+        menu->addAction(playAll());
+        menu->addSeparator();
+        if (selection && isMedia) {
+            menu->addAction(removeSelectedItemsInfo());
+            menu->addSeparator();
+        }
+        menu->addAction(refreshMediaView());
+        menu->addSeparator();
+        
+    } 
+    if (showAbout) menu->addAction(helpMenu->action(KHelpMenu::menuAboutApp));
+    return menu;
+}
+
 //------------------
 //-- Action SLOTS --
 //------------------

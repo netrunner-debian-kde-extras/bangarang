@@ -42,6 +42,7 @@
 class MediaItem;
 class MediaListProperties;
 class MediaItemModel;
+class MediaListCache;
 class Playlist;
 class MediaItemDelegate;
 class NowPlayingDelegate;
@@ -80,8 +81,10 @@ public:
     QList<MediaListProperties> m_mediaListPropertiesHistory;
     ActionsManager * actionsManager();
     void setAboutData(KAboutData *aboutData);
+    KAboutData * aboutData();
     Playlist * playlist();
     Phonon::AudioOutput * audioOutput();
+    InfoManager *infoManager();
     
     
 private:
@@ -121,6 +124,8 @@ private:
     KAboutData *m_aboutData;
     KHelpMenu *m_helpMenu;
     KMenu *m_menu;
+    bool m_nepomukInited;
+    MediaListCache * m_sharedMediaListCache;
     
     QAction * playAllAction;
     QAction * playSelectedAction;
@@ -156,7 +161,7 @@ private slots:
     void nowPlayingChanged();
     void playlistFinished();
     void hidePlayButtons();
-    void updateListTitle();
+    void updateListHeader();
     void on_clearPlaylist_clicked();
     void on_playlistView_doubleClicked(const QModelIndex & index);
     void on_seekTime_clicked();
@@ -168,6 +173,7 @@ private slots:
     void deviceRemoved(const QString &udi);
     void showLoading();
     void on_showMenu_clicked();
+    void on_showMediaViewMenu_clicked();
     
 protected:
     bool eventFilter(QObject *obj, QEvent *event);

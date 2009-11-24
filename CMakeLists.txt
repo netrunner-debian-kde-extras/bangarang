@@ -37,6 +37,8 @@ SET(BangarangSources
     platform/dvdlistengine.cpp 
     platform/medialistsengine.cpp
     platform/audiostreamlistengine.cpp
+    platform/nepomuklistengine.cpp
+    platform/semanticslistengine.cpp
     platform/playlist.cpp 
     platform/utilities.cpp 
     platform/listengine.cpp 
@@ -44,7 +46,9 @@ SET(BangarangSources
     platform/listenginefactory.cpp 
     platform/mediaindexer.cpp 
     platform/mediavocabulary.cpp 
-    platform/blur.cpp
+    platform/medialistcache.cpp
+    platform/cachelistengine.cpp
+    platform/audioclipslistengine.cpp
 )
 
 KDE4_ADD_UI_FILES(BangarangSources mainwindow.ui)

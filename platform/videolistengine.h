@@ -19,11 +19,8 @@
 #ifndef VIDEOLISTENGINE_H
 #define VIDEOLISTENGINE_H
 
-#include "listengine.h"
+#include "nepomuklistengine.h"
 #include <QtCore>
-#include <Nepomuk/Resource>
-#include <Nepomuk/ResourceManager>
-#include <Soprano/Model>
 
 class MediaItem;
 class MediaListProperties;
@@ -40,6 +37,8 @@ public:
 	void selectDuration(bool optional=false);
 	void selectEpisode(bool optional=false);
 	void selectDescription(bool optional=false);
+    void selectCreated(bool optional=false);
+    void selectGenre(bool optional=false);
 	void selectIsTVShow(bool optional=false);
 	void selectIsMovie(bool optional=false);
     void selectRating(bool optional=false);
@@ -52,7 +51,8 @@ public:
 	void hasNoSeason();
 
 	void hasSeriesName(QString seriesName);
-	void hasNoSeriesName();
+    void hasGenre(QString genre);
+    void hasNoSeriesName();
 
 	void searchString(QString str);
 
@@ -72,6 +72,8 @@ private:
 	bool m_selectDuration;
 	bool m_selectEpisode;
 	bool m_selectDescription;
+    bool m_selectCreated;
+    bool m_selectGenre;
 	bool m_selectIsTVShow;
 	bool m_selectIsMovie;
     bool m_selectRating;
@@ -83,6 +85,8 @@ private:
 	QString m_durationCondition;
 	QString m_episodeCondition;
 	QString m_descriptionCondition;
+    QString m_createdCondition;
+    QString m_genreCondition;
 	QString m_TVShowCondition;
 	QString m_movieCondition;
 	QString m_searchCondition;
@@ -95,7 +99,7 @@ private:
 	QString getPrefix();
 };
 
-class VideoListEngine : public ListEngine
+class VideoListEngine : public NepomukListEngine
 {
     Q_OBJECT
     
@@ -103,27 +107,14 @@ class VideoListEngine : public ListEngine
         VideoListEngine(ListEngineFactory *parent);
         ~VideoListEngine();
         void run();
-        void setMediaListProperties(MediaListProperties mediaListProperties);
-        MediaListProperties mediaListProperties();
-        void setFilterForSources(QString engineFilter);
-        void setRequestSignature(QString requestSignature);
-        void setSubRequestSignature(QString subRequestSignature);
-        void activateAction();
+        void setFilterForSources(const QString& engineFilter);
         
     private:
-        ListEngineFactory * m_parent;
-        Soprano::Model * m_mainModel;
-        MediaListProperties m_mediaListProperties;
-        QString m_requestSignature;
-        QString m_subRequestSignature;
-        
         MediaItem createMediaItem(Soprano::QueryResultIterator& it);
 
 
     Q_SIGNALS:
         void results(QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done);
-        #include "mediaitemmodel.h"
-        
 };
 #endif // VIDEOLISTENGINE_H
 

@@ -39,6 +39,8 @@ class MediaIndexerJob: public KJob
         void setMediaListToIndex(QList<MediaItem> mediaList);
         void indexUrl(QString url);
         void indexMediaItem(MediaItem mediaItem);
+        void setInfoToRemove(QList<MediaItem> mediaList);
+        void removeInfo(MediaItem mediaItem);
         void start();
     
     private:
@@ -51,6 +53,8 @@ class MediaIndexerJob: public KJob
         
     Q_SIGNALS:
         void jobComplete();
+        void urlInfoRemoved(QString url);
+        void sourceInfoUpdated(MediaItem mediaItem);
 };
 
 class MediaIndexer : public QThread
@@ -59,23 +63,28 @@ class MediaIndexer : public QThread
     
     public:
         enum IndexType { IndexUrl = Qt::UserRole + 1,
-        IndexMediaItem = Qt::UserRole + 2};
+        IndexMediaItem = Qt::UserRole + 2,
+        RemoveInfo = Qt::UserRole + 3};
         MediaIndexer(QObject *parent);
         ~MediaIndexer();
         void run();
         void indexUrls(QList<QString> urls);
         void indexMediaItems(QList<MediaItem> mediaList);
+        void removeInfo(QList<MediaItem> mediaList);
         
     private:
         QList<QString> m_urls;
         QList<MediaItem> m_mediaList;
         int m_indexType;
-    
+        bool m_nepomukInited;
+        
     private slots:
         void jobComplete();
         
     Q_SIGNALS:
         void indexingComplete();
+        void urlInfoRemoved(QString url);
+        void sourceInfoUpdated(MediaItem mediaItem);
         
 };
 #endif // MEDIAINDEXER_H

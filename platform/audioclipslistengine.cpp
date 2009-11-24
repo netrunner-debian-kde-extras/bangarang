@@ -16,7 +16,7 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "audiostreamlistengine.h"
+#include "audioclipslistengine.h"
 #include "mediaitemmodel.h"
 #include "listenginefactory.h"
 #include "mediavocabulary.h"
@@ -32,19 +32,19 @@
 #include <QTime>
 #include <taglib/fileref.h>
 
-AudioStreamListEngine::AudioStreamListEngine(ListEngineFactory * parent) : NepomukListEngine(parent)
+AudioClipsListEngine::AudioClipsListEngine(ListEngineFactory * parent) : NepomukListEngine(parent)
 {
 }
 
-AudioStreamListEngine::~AudioStreamListEngine()
+AudioClipsListEngine::~AudioClipsListEngine()
 {
 }
 
-MediaItem AudioStreamListEngine::createMediaItem(Soprano::QueryResultIterator& it) {
+MediaItem AudioClipsListEngine::createMediaItem(Soprano::QueryResultIterator& it) {
     MediaItem mediaItem;
     QUrl url = it.binding("url").uri().isEmpty() ? 
-                    it.binding("r").uri() :
-                    it.binding("url").uri();
+    it.binding("r").uri() :
+    it.binding("url").uri();
     mediaItem.url = url.toString();
     mediaItem.title = it.binding("title").literal().toString();
     mediaItem.fields["title"] = it.binding("title").literal().toString();
@@ -58,18 +58,18 @@ MediaItem AudioStreamListEngine::createMediaItem(Soprano::QueryResultIterator& i
     
     mediaItem.type = "Audio";
     mediaItem.nowPlaying = false;
-    mediaItem.artwork = KIcon("x-media-podcast");
+    mediaItem.artwork = KIcon("audio-x-wav");
     mediaItem.fields["url"] = mediaItem.url;
     mediaItem.fields["genre"] = it.binding("genre").literal().toString();
     mediaItem.fields["rating"] = it.binding("rating").literal().toInt();
     mediaItem.fields["description"] = it.binding("description").literal().toString();
     mediaItem.fields["artworkUrl"] = it.binding("artwork").uri().toString();
-    mediaItem.fields["audioType"] = "Audio Stream";
-
+    mediaItem.fields["audioType"] = "Audio Clip";
+    
     return mediaItem;
 }
 
-void AudioStreamListEngine::run()
+void AudioClipsListEngine::run()
 {
     
     //Create media list based on engine argument and filter
@@ -81,17 +81,17 @@ void AudioStreamListEngine::run()
     
     if (m_nepomukInited) {
         if (engineArg.isEmpty()) {
-            AudioStreamQuery audioStreamQuery = AudioStreamQuery(true);
-            audioStreamQuery.selectResource();
-            audioStreamQuery.selectTitle();
-            audioStreamQuery.selectRating(true);
-            audioStreamQuery.selectDescription(true);
-            audioStreamQuery.selectArtwork(true);
-            //audioStreamQuery.selectGenre(true);
-            audioStreamQuery.orderBy("?title");
+            AudioClipsQuery audioClipsQuery = AudioClipsQuery(true);
+            audioClipsQuery.selectResource();
+            audioClipsQuery.selectTitle();
+            audioClipsQuery.selectRating(true);
+            audioClipsQuery.selectDescription(true);
+            audioClipsQuery.selectArtwork(true);
+            //audioClipsQuery.selectGenre(true);
+            audioClipsQuery.orderBy("?title");
             
             //Execute Query
-            Soprano::QueryResultIterator it = audioStreamQuery.executeSelect(m_mainModel);
+            Soprano::QueryResultIterator it = audioClipsQuery.executeSelect(m_mainModel);
             
             //Build media list from results
             while( it.next() ) {
@@ -99,30 +99,23 @@ void AudioStreamListEngine::run()
                 mediaList.append(mediaItem);
             }
             
-            m_mediaListProperties.summary = QString("%1 streams").arg(mediaList.count());
-            
-            MediaItem mediaItem;
-            mediaItem.type = "Action";
-            mediaItem.url = "audiostreams://";
-            mediaItem.title = "Create new audio stream item";
-            mediaItem.artwork = KIcon("document-new");
-            mediaList.append(mediaItem);
+            m_mediaListProperties.summary = QString("%1 clips").arg(mediaList.count());
             
             m_mediaListProperties.type = QString("Sources");
             
         } else if (engineArg.toLower() == "search") {
-            AudioStreamQuery audioStreamQuery = AudioStreamQuery(true);
-            audioStreamQuery.selectResource();
-            audioStreamQuery.selectTitle();
-            audioStreamQuery.selectRating(true);
-            audioStreamQuery.selectDescription(true);
-            audioStreamQuery.selectArtwork(true);
-            //audioStreamQuery.selectGenre(true);
-            audioStreamQuery.searchString(engineFilter);
-            audioStreamQuery.orderBy("?title");
+            AudioClipsQuery audioClipsQuery = AudioClipsQuery(true);
+            audioClipsQuery.selectResource();
+            audioClipsQuery.selectTitle();
+            audioClipsQuery.selectRating(true);
+            audioClipsQuery.selectDescription(true);
+            audioClipsQuery.selectArtwork(true);
+            //audioClipsQuery.selectGenre(true);
+            audioClipsQuery.searchString(engineFilter);
+            audioClipsQuery.orderBy("?title");
             
             //Execute Query
-            Soprano::QueryResultIterator it = audioStreamQuery.executeSelect(m_mainModel);
+            Soprano::QueryResultIterator it = audioClipsQuery.executeSelect(m_mainModel);
             
             //Build media list from results
             while( it.next() ) {
@@ -130,7 +123,7 @@ void AudioStreamListEngine::run()
                 mediaList.append(mediaItem);
             }
             
-            m_mediaListProperties.summary = QString("%1 streams").arg(mediaList.count());
+            m_mediaListProperties.summary = QString("%1 clips").arg(mediaList.count());
             m_mediaListProperties.type = QString("Sources");
         }
     }
@@ -140,37 +133,15 @@ void AudioStreamListEngine::run()
     m_subRequestSignature = QString();
 }
 
-void AudioStreamListEngine::setFilterForSources(const QString& engineFilter)
+void AudioClipsListEngine::setFilterForSources(const QString& engineFilter)
 {
     //Always return songs
-	// FIXME: Is it intentional that %1 is missing?
-    m_mediaListProperties.lri = QString("audiostreams://").arg(engineFilter);
-}
-
-void AudioStreamListEngine::activateAction()
-{
-    MediaItem mediaItem;
-    mediaItem.type = "Audio";
-    mediaItem.url = QString();
-    mediaItem.title = "Untitled Audio Stream";
-    mediaItem.subTitle = "Select this item, click Info then Edit to enter audio stream info";
-    mediaItem.artwork = KIcon("x-media-podcast");
-    mediaItem.fields["title"] = "Untitled";
-    mediaItem.fields["audioType"] = "Audio Stream";
-    mediaItem.fields["isTemplate"] = true;
-    
-    QList<MediaItem> mediaList;
-    mediaList << mediaItem;
-    
-    m_mediaListProperties.name = "New Audio Stream";
-    
-    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    // FIXME: Is it intentional that %1 is missing?
+    m_mediaListProperties.lri = QString("audioclips://").arg(engineFilter);
 }
 
 
-
-
-AudioStreamQuery::AudioStreamQuery(bool distinct) :
+AudioClipsQuery::AudioClipsQuery(bool distinct) :
 m_distinct(distinct),
 m_selectResource(false),
 m_selectTitle(false),
@@ -178,46 +149,46 @@ m_selectGenre(false)
 {
 }
 
-void AudioStreamQuery::selectResource() {
+void AudioClipsQuery::selectResource() {
     m_selectResource = true;
 }
 
-void AudioStreamQuery::selectTitle(bool optional) {
+void AudioClipsQuery::selectTitle(bool optional) {
     m_selectTitle = true;
     m_titleCondition = addOptional(optional,
                                    QString("?r <%1> ?title . ")
                                    .arg(MediaVocabulary().title().toString()));
 }
 
-void AudioStreamQuery::selectGenre(bool optional) {
+void AudioClipsQuery::selectGenre(bool optional) {
     m_selectGenre = true;
     m_genreCondition = addOptional(optional,
-                                         QString("?r <%1> ?genre . ")
-                                         .arg(MediaVocabulary().musicGenre().toString()));
+                                   QString("?r <%1> ?genre . ")
+                                   .arg(MediaVocabulary().musicGenre().toString()));
 }
 
-void AudioStreamQuery::selectRating(bool optional) {
+void AudioClipsQuery::selectRating(bool optional) {
     m_selectRating = true;
     m_ratingCondition = addOptional(optional,
-                                   QString("?r <%1> ?rating . ")
-                                   .arg(Soprano::Vocabulary::NAO::numericRating().toString()));
+                                    QString("?r <%1> ?rating . ")
+                                    .arg(Soprano::Vocabulary::NAO::numericRating().toString()));
 }
 
-void AudioStreamQuery::selectDescription(bool optional) {
+void AudioClipsQuery::selectDescription(bool optional) {
     m_selectDescription = true;
     m_descriptionCondition = addOptional(optional,
-                                    QString("?r <%1> ?description . ")
-                                    .arg(MediaVocabulary().description().toString()));
+                                         QString("?r <%1> ?description . ")
+                                         .arg(MediaVocabulary().description().toString()));
 }
 
-void AudioStreamQuery::selectArtwork(bool optional) {
+void AudioClipsQuery::selectArtwork(bool optional) {
     m_selectArtwork = true;
     m_artworkCondition = addOptional(optional,
-                                         QString("?r <%1> ?artwork . ")
-                                         .arg(MediaVocabulary().artwork().toString()));
+                                     QString("?r <%1> ?artwork . ")
+                                     .arg(MediaVocabulary().artwork().toString()));
 }
 
-void AudioStreamQuery::searchString(QString str) {
+void AudioClipsQuery::searchString(QString str) {
     if (! str.isEmpty()) {
         m_searchCondition = QString(
         "FILTER (regex(str(?artist),\"%1\",\"i\") || " 
@@ -228,14 +199,14 @@ void AudioStreamQuery::searchString(QString str) {
 }
 
 
-void AudioStreamQuery::orderBy(QString var) {
+void AudioClipsQuery::orderBy(QString var) {
     if (!var.isEmpty()) {
         m_order = "ORDER BY " + var;
     }
 }
 
 
-QString AudioStreamQuery::addOptional(bool optional, QString str) {
+QString AudioClipsQuery::addOptional(bool optional, QString str) {
     if (optional) {
         return QString("OPTIONAL { ") + str + "} . ";
     } else {
@@ -243,7 +214,7 @@ QString AudioStreamQuery::addOptional(bool optional, QString str) {
     }
 }
 
-QString AudioStreamQuery::getPrefix() {
+QString AudioClipsQuery::getPrefix() {
     return QString("PREFIX xesam: <%1> "
     "PREFIX rdf: <%2> "
     "PREFIX nmm: <%3> "
@@ -255,7 +226,7 @@ QString AudioStreamQuery::getPrefix() {
     .arg(Soprano::Vocabulary::XMLSchema::xsdNamespace().toString());
 }
 
-Soprano::QueryResultIterator AudioStreamQuery::executeSelect(Soprano::Model* model) {
+Soprano::QueryResultIterator AudioClipsQuery::executeSelect(Soprano::Model* model) {
     QString queryString = getPrefix();
     queryString += "SELECT ";
     
@@ -277,7 +248,7 @@ Soprano::QueryResultIterator AudioStreamQuery::executeSelect(Soprano::Model* mod
     //NOTE: nie:url is not in any released nie ontology that I can find.
     //      In future KDE will use nfo:fileUrl so this will need to be changed.
     queryString += QString("WHERE { ?r rdf:type <%1> . OPTIONAL { ?r nie:url ?url } . ")
-    .arg(MediaVocabulary().typeAudioStream().toString());
+    .arg(MediaVocabulary().typeAudio().toString());
     
     queryString += m_titleCondition;
     queryString += m_genreCondition;
@@ -294,10 +265,10 @@ Soprano::QueryResultIterator AudioStreamQuery::executeSelect(Soprano::Model* mod
                                Soprano::Query::QueryLanguageSparql);
 }
 
-bool AudioStreamQuery::executeAsk(Soprano::Model* model) {
+bool AudioClipsQuery::executeAsk(Soprano::Model* model) {
     QString queryString = getPrefix();
     queryString += QString("ASK { ?r rdf:type <%1> . ")
-    .arg(MediaVocabulary().typeAudioStream().toString());
+    .arg(MediaVocabulary().typeAudio().toString());
     
     queryString += m_titleCondition;
     queryString += m_genreCondition;

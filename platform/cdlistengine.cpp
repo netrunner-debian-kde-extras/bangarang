@@ -38,11 +38,6 @@
 
 CDListEngine::CDListEngine(ListEngineFactory * parent) : ListEngine(parent)
 {
-    m_parent = parent;
-    
-    m_requestSignature = QString();
-    m_subRequestSignature = QString();
-
     m_mediaObject = new Phonon::MediaObject(this);
     m_mediaObject->setCurrentSource(Phonon::Cd);
     connect(m_mediaObject, SIGNAL(stateChanged(Phonon::State, Phonon::State)), this, SLOT(stateChanged(Phonon::State, Phonon::State)));
@@ -98,6 +93,7 @@ void CDListEngine::run()
             mediaItem.title = QString("Number of tracks: %1").arg(trackCount);
             mediaItem.type = "Audio";
             mediaList << mediaItem;*/
+            m_mediaListProperties.summary = QString("%1 tracks").arg(mediaList.count());
             model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
             m_requestSignature = QString();
             m_subRequestSignature = QString();
@@ -113,39 +109,11 @@ void CDListEngine::run()
     //exec();    
 }
 
-void CDListEngine::setMediaListProperties(MediaListProperties mediaListProperties)
-{
-    m_mediaListProperties = mediaListProperties;
-}
-
-MediaListProperties CDListEngine::mediaListProperties()
-{
-    return m_mediaListProperties;
-}
-
-void CDListEngine::setFilterForSources(QString engineFilter)
-{
-    Q_UNUSED(engineFilter);
-}
-
-void CDListEngine::setRequestSignature(QString requestSignature)
-{
-    m_requestSignature = requestSignature;
-}
-
-void CDListEngine::setSubRequestSignature(QString subRequestSignature)
-{
-    m_subRequestSignature = subRequestSignature;
-}
-
-void CDListEngine::activateAction()
-{
-        
-}
 
 void CDListEngine::stateChanged(Phonon::State newState, Phonon::State oldState)
 {
     if ((oldState == Phonon::LoadingState) && m_loadWhenReady) {
         start();
     }
+    Q_UNUSED(newState);
 }

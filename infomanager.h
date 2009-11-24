@@ -54,6 +54,7 @@ class InfoManager : public QObject
         void saveInfoView();
         void showInfoView();
         void editInfoView();
+        void removeSelectedItemsInfo();
         
     private:
         MainWindow *m_parent; 
@@ -63,7 +64,6 @@ class InfoManager : public QObject
         void loadInfoView();
         QVariant commonValue(QString field);
         QStringList valueList(QString field);
-        void saveMusicInfoToFiles();
         void saveInfoToMediaModel();
         QList<int> m_rows;
         void showFields(bool edit = false);

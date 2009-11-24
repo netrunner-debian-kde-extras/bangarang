@@ -16,33 +16,31 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <KIcon>
-#include <QMenu>
-#include "mediaview.h"
-#include "mainwindow.h"
-#include "actionsmanager.h"
-#include "platform/mediaitemmodel.h"
+#ifndef MEDIALISTCACHE_H
+#define MEDIALISTCACHE_H
 
-MediaView::MediaView(QWidget * parent):QTreeView (parent) 
+#include "mediaitemmodel.h"
+#include <QObject>
+
+class MediaListCache : public QObject
 {
+    Q_OBJECT
     
-}
-
-MediaView::~MediaView() 
-{
-}
-
-void MediaView::setMainWindow(MainWindow * mainWindow)
-{
-    m_mainWindow = mainWindow;
-}
-
-void MediaView::contextMenuEvent(QContextMenuEvent * event)
-{
-    if (selectionModel()->selectedIndexes().count() != 0) {
-        QMenu * menu = m_mainWindow->actionsManager()->mediaViewMenu();
-        menu->exec(event->globalPos());
-    }
-    
-}
-
+    public:
+        MediaListCache(QObject * parent);
+        ~MediaListCache();
+        
+        void addMediaList(MediaListProperties mediaListProperties, QList<MediaItem> mediaList);
+        void removeMediaList(QString lri);
+        QList<MediaItem> mediaList(QString lri);
+        MediaListProperties mediaListProperties(QString lri);
+        bool isInCache(QString lri);
+        
+    private:
+        QList< QList<MediaItem> > m_mediaListCache;
+        QList<MediaListProperties> m_mediaListProperties;
+        QList<QString> m_lris;
+        QList<int> m_mediaListSizes;
+        
+};
+#endif //MEDIALISTCACHE_H

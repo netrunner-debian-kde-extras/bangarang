@@ -26,27 +26,12 @@
 #include <KMimeType>
 #include <KStandardDirs>
 #include <KUrl>
-#include <nepomuk/resource.h>
-#include <nepomuk/variant.h>
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
 #include <id3v2tag.h>
 
 SavedListsEngine::SavedListsEngine(ListEngineFactory * parent) : ListEngine(parent)
 {
-    m_parent = parent;
-    
-    
-    Nepomuk::ResourceManager::instance()->init();
-    if (Nepomuk::ResourceManager::instance()->initialized()) {
-        //resource manager inited successfully
-    } else {
-        //no resource manager
-    };
-    
-    m_requestSignature = QString();
-    m_subRequestSignature = QString();
-
 }
 
 SavedListsEngine::~SavedListsEngine()
@@ -57,9 +42,11 @@ void SavedListsEngine::run()
 {
     QList<MediaItem> mediaList;
     
+    
     if (!m_mediaListProperties.engineArg().isEmpty()) {
         QFile file(KStandardDirs::locateLocal("data", QString("bangarang/%1").arg(m_mediaListProperties.engineArg()), false));
         if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
             return;
         }
         
@@ -109,47 +96,10 @@ void SavedListsEngine::run()
             }
         }
         
-        /*MediaItem mediaItem;
-        mediaItem.url = "-";
-        mediaItem.title = QString("Saved List Engine test").arg(m_mediaListProperties.engineArg());
-        mediaItem.type = "Audio";
-        mediaList << mediaItem;*/
-        
-        
-        model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
-        m_requestSignature = QString();
-        m_subRequestSignature = QString();
     }
-    //exec();    
+    
+    m_mediaListProperties.summary = QString("%1 items").arg(mediaList.count());
+    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    m_requestSignature = QString();
+    m_subRequestSignature = QString();
 }
-
-void SavedListsEngine::setMediaListProperties(MediaListProperties mediaListProperties)
-{
-    m_mediaListProperties = mediaListProperties;
-}
-
-MediaListProperties SavedListsEngine::mediaListProperties()
-{
-    return m_mediaListProperties;
-}
-
-void SavedListsEngine::setFilterForSources(QString engineFilter)
-{
-    Q_UNUSED(engineFilter);
-}
-
-void SavedListsEngine::setRequestSignature(QString requestSignature)
-{
-    m_requestSignature = requestSignature;
-}
-
-void SavedListsEngine::setSubRequestSignature(QString subRequestSignature)
-{
-    m_subRequestSignature = subRequestSignature;
-}
-
-void SavedListsEngine::activateAction()
-{
-        
-}
-

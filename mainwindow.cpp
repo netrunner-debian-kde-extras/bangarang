@@ -20,6 +20,7 @@
 #include "ui_mainwindow.h"
 #include "platform/utilities.h"
 #include "platform/mediaitemmodel.h"
+#include "platform/medialistcache.h"
 #include "platform/playlist.h"
 #include "infomanager.h"
 #include "savedlistsmanager.h"
@@ -29,12 +30,14 @@
 
 
 #include <KCmdLineArgs>
+#include <KCursor>
 #include <KUrl>
 #include <KIcon>
 #include <KIconEffect>
 #include <KMessageBox>
 #include <KSqueezedTextLabel>
 #include <KColorScheme>
+#include <KGlobalSettings>
 #include <KDebug>
 #include <KHelpMenu>
 #include <KMenu>
@@ -58,6 +61,8 @@
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindowClass)
 {
+    qRegisterMetaType<MediaItem>("MediaItem");
+    
     ui->setupUi(this);
     
     //Setup interface icons
@@ -67,9 +72,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     // Hide certain widgets
     ui->previous->setVisible(false);
     ui->contextStack->setVisible(false);
-    ui->playlistNameEdit->setVisible(false);
     ui->playSelected->setVisible(false);
     ui->showInfo->setVisible(false);
+    ui->infoSep1->setVisible(false);
+    ui->infoSep2->setVisible(false);
     ui->saveInfo->setVisible(false);
     ui->sortList->setVisible(false);
     ui->configureAudioList->setVisible(false);
@@ -78,10 +84,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     //Initialize Nepomuk
     Nepomuk::ResourceManager::instance()->init();
     if (Nepomuk::ResourceManager::instance()->initialized()) {
-        //resource manager inited successfully
+        m_nepomukInited = true; //resource manager inited successfully
     } else {
-        //no resource manager
-    };
+        m_nepomukInited = false; //no resource manager
+    }
     
     //Set up device notifier
     connect(Solid::DeviceNotifier::instance(), SIGNAL(deviceAdded(const QString & )), this, SLOT(deviceAdded(const QString & )));
@@ -136,10 +142,8 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     m_videoListsModel->load();
     
     //Set up media list view
-    MediaListProperties mediaListProperties;
-    mediaListProperties.lri = "music://artists";
     m_mediaItemModel = new MediaItemModel(this);
-    m_mediaItemModel->setMediaListProperties(mediaListProperties);
+    m_sharedMediaListCache = m_mediaItemModel->mediaListCache();
     m_itemDelegate = new MediaItemDelegate(this);
     ui->mediaView->setModel(m_mediaItemModel);
     ui->mediaView->setItemDelegate(m_itemDelegate);
@@ -149,19 +153,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     connect(m_itemDelegate, SIGNAL(actionActivated(QModelIndex)), m_mediaItemModel, SLOT(actionActivated(QModelIndex)));
     connect(m_mediaItemModel, SIGNAL(mediaListChanged()), this, SLOT(mediaListChanged()));
     connect(m_mediaItemModel, SIGNAL(loading()), this, SLOT(hidePlayButtons()));
-    connect(m_mediaItemModel, SIGNAL(propertiesChanged()), this, SLOT(updateListTitle()));
+    connect(m_mediaItemModel, SIGNAL(propertiesChanged()), this, SLOT(updateListHeader()));
     connect(ui->mediaView->selectionModel(), SIGNAL(selectionChanged(const QItemSelection, const QItemSelection)), this, SLOT(mediaSelectionChanged(const QItemSelection, const QItemSelection)));
     ui->mediaView->setMainWindow(this);
     
     //Set up playlist
     m_playlist = new Playlist(this, m_media);
     connect(m_playlist, SIGNAL(playlistFinished()), this, SLOT(playlistFinished()));
+    connect(m_playlist, SIGNAL(loading()), this, SLOT(showLoading()));
     
     //Set up playlist view
     m_currentPlaylist = m_playlist->playlistModel();
-    MediaListProperties currentPlaylistItemProperties;
-    currentPlaylistItemProperties.name = QString("Current Playlist");
-    m_currentPlaylist->setMediaListProperties(currentPlaylistItemProperties);
+    m_currentPlaylist->setMediaListCache(m_sharedMediaListCache);
     m_playlistItemDelegate = new MediaItemDelegate(this);
     ui->playlistView->setModel(m_currentPlaylist);
     ui->playlistView->setItemDelegate(m_playlistItemDelegate);
@@ -190,12 +193,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     //Set up defaults
     ui->stackedWidget->setCurrentIndex(1);
     ui->mediaViewHolder->setCurrentIndex(0);
-    ui->mediaLists->setCurrentIndex(0);
     ui->audioListsStack->setCurrentIndex(0);
     ui->videoListsStack->setCurrentIndex(0);
     ui->mediaPlayPause->setHoldDelay(1000);
     ui->mediaPrevious->setDefaultAction(m_actionsManager->playPrevious());
     ui->mediaNext->setDefaultAction(m_actionsManager->playNext());
+    ui->listSummary->setFont(KGlobalSettings::smallestReadableFont());
+    ui->playlistDuration->setFont(KGlobalSettings::smallestReadableFont());
     updateSeekTime(0);
     showApplicationBanner();
     updateCachedDevicesList();
@@ -223,16 +227,42 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
             mediaList << mediaItem;
             m_playlist->playMediaList(mediaList);
         }
+    } else {
+        if (m_nepomukInited) {
+            //Preload queries that are likely to be long so that, if necessary, they can be cached early
+            //(prehaps this could be configurable in the future)
+            //FIXME:This is disabled for now since it somehow blocks the 
+            // playlist Phonon::MediaObject::setCurrentSource() method
+            
+            /*MediaListProperties mediaListProperties;
+            mediaListProperties.lri = "music://songs";
+            m_mediaItemModel->setMediaListProperties(mediaListProperties);
+            m_mediaItemModel->load();
+            mediaListProperties.lri = "video://movies";
+            m_mediaItemModel->setMediaListProperties(mediaListProperties);
+            m_mediaItemModel->load();*/
+        } else {
+            KMessageBox::information(this, tr("Bangarang is unable to access the Nepomuk Semantic Desktop repository. Media library, rating and play count functions will be unavailable."), tr("Bangarang"), tr("Don't show this message again"));
+        }
     }
+    
+    
+    //Set default media list
+    ui->mediaLists->setCurrentIndex(0);
     
     //Install event filter for hiding widgets in Now Playing view
     ui->nowPlayingView->installEventFilter(this);
     m_videoWidget->installEventFilter(this);
+
+    // Set up cursor hiding for videos.
+    m_videoWidget->setFocusPolicy(Qt::ClickFocus);
+    KCursor::setAutoHideCursor(m_videoWidget, true);
 }
 
 MainWindow::~MainWindow()
 {
     delete ui;
+    delete m_mediaItemModel;
 }
 
 
@@ -265,6 +295,8 @@ void MainWindow::on_Filter_returnPressed()
         ui->mediaViewHolder->setCurrentIndex(0);
         ui->saveInfo->setVisible(false);
         ui->showInfo->setVisible(false);
+        ui->infoSep1->setVisible(false);
+        ui->infoSep2->setVisible(false);
     }
 }
 
@@ -290,12 +322,14 @@ void MainWindow::on_fullScreen_toggled(bool fullScreen)
         showFullScreen();
         ui->fullScreen->setIcon(KIcon("view-restore"));
         ui->fullScreen->setToolTip("<b>Fullscreen</b><br>Click to exit fullscreen");
+        ui->fullScreen->setChecked(true);
         ui->widgetSet->setVisible(false);
         ui->nowPlayingToolbar->setVisible(false);
     } else {
         showNormal();
         ui->fullScreen->setIcon(KIcon("view-fullscreen"));
         ui->fullScreen->setToolTip("Show fullscreen");
+        ui->fullScreen->setChecked(false);
         ui->widgetSet->setVisible(true);
         ui->nowPlayingToolbar->setVisible(true);
     }
@@ -313,7 +347,7 @@ void MainWindow::on_seekTime_clicked()
 
 void MainWindow::on_mediaPlayPause_pressed()
 {
-    if ((m_media->state() == Phonon::PlayingState) || (m_media->state() == Phonon::BufferingState)) {
+    if ((m_media->state() == Phonon::PlayingState)) {
         m_media->pause();
         m_pausePressed = true;
         ui->mediaPlayPause->setToolTip("<b>Paused</b><br>Hold to stop");
@@ -322,10 +356,13 @@ void MainWindow::on_mediaPlayPause_pressed()
 
 void MainWindow::on_mediaPlayPause_held()
 {
-    if (m_pausePressed) {
-        m_pausePressed = false;
+    if ((m_media->state() != Phonon::LoadingState) && (m_media->state() != Phonon::StoppedState)) {
+        if (m_pausePressed) {
+            m_pausePressed = false;
+        }
         m_stopPressed = true;
         ui->mediaPlayPause->setIcon(KIcon("media-playback-stop"));
+        m_playlist->stop();
     }
 }
 
@@ -333,7 +370,6 @@ void MainWindow::on_mediaPlayPause_released()
 {
     if (m_stopPressed) {
         m_stopPressed = false;
-        m_playlist->stop();
     } else {
         if ((!m_pausePressed) && (m_media->state() == Phonon::PausedState)) {
             m_media->play();
@@ -385,10 +421,15 @@ void MainWindow::on_previous_clicked()
             ui->playSelected->setVisible(true);
             ui->playAll->setVisible(false);
             ui->showInfo->setVisible(true);
+            ui->infoSep1->setVisible(true);
+            ui->infoSep2->setVisible(true);
+            
         } else {
             ui->playSelected->setVisible(false);
             ui->playAll->setVisible(true);
             ui->showInfo->setVisible(false);
+            ui->infoSep1->setVisible(false);
+            ui->infoSep2->setVisible(false);
         }
         if (m_mediaListPropertiesHistory.count() > 0) {
             ui->previous->setVisible(true);
@@ -460,6 +501,8 @@ void MainWindow::on_mediaLists_currentChanged(int i)
             ui->mediaViewHolder->setCurrentIndex(0);
             ui->saveInfo->setVisible(false);
             ui->showInfo->setVisible(false);
+            ui->infoSep1->setVisible(false);
+            ui->infoSep2->setVisible(false);
         }
     }
 }
@@ -512,12 +555,12 @@ void MainWindow::on_showQueue_clicked()
     if (m_showQueue) {
         ui->playlistView->setModel(m_playlist->queueModel());
         ui->showQueue->setToolTip("<b>Showing Upcoming</b><br>Click to show playlist");
-        ui->playlistName->setText(ui->playlistName->text() + QString("(Upcoming)"));
+        ui->playlistName->setText(QString("<b>Playlist</b>(Upcoming)"));
         ui->showQueue->setIcon(KIcon("bangarang-preview"));
     } else {
         ui->playlistView->setModel(m_playlist->playlistModel());
         ui->showQueue->setToolTip("Show Upcoming");
-        ui->playlistName->setText(ui->playlistName->text().remove("(Upcoming)"));
+        playlistChanged();
         ui->showQueue->setIcon(turnIconOff(KIcon("bangarang-preview"), QSize(22, 22)));
     }
 }
@@ -535,6 +578,13 @@ void MainWindow::on_showMenu_clicked()
     m_menu->addAction(m_helpMenu->action(KHelpMenu::menuAboutApp));
     QPoint menuLocation = ui->showMenu->mapToGlobal(QPoint(0,ui->showMenu->height()));
     m_menu->popup(menuLocation);
+}
+
+void MainWindow::on_showMediaViewMenu_clicked()
+{
+    QMenu * menu = m_actionsManager->mediaViewMenu(true);
+    QPoint menuLocation = ui->showMediaViewMenu->mapToGlobal(QPoint(0,ui->showMediaViewMenu->height()));
+    menu->exec(menuLocation);
 }
 
 /*----------------------------------------
@@ -556,6 +606,12 @@ void MainWindow::updateSeekTime(qint64 time)
     }
     ui->seekTime->setToolButtonStyle(Qt::ToolButtonTextOnly);
     ui->seekTime->setText(displayTime);
+    if (showRemainingTime) {
+        ui->seekTime->setToolTip("<b>Time remaining</b><br>Click to show elapsed time");
+    } else {
+        ui->seekTime->setToolTip("<b>Time elapsed</b><br>Click to show remaining time");
+    }
+    
     
     //Update Now Playing Button text
     QString title;
@@ -594,7 +650,7 @@ void MainWindow::mediaStateChanged(Phonon::State newstate, Phonon::State oldstat
 
 void MainWindow::showLoading()
 {
-    if (m_media->state() == Phonon::LoadingState || m_media->state() == Phonon::BufferingState) {
+    if (m_media->state() == Phonon::LoadingState || m_media->state() == Phonon::BufferingState || m_playlist->loadingState() == Playlist::Loading) {
         m_loadingProgress += 1;
         if ((m_loadingProgress > 7) || (m_loadingProgress < 0)) {
             m_loadingProgress = 0;
@@ -602,6 +658,13 @@ void MainWindow::showLoading()
         QString iconName= QString("bangarang-loading-%1").arg(m_loadingProgress);
         ui->seekTime->setToolButtonStyle(Qt::ToolButtonIconOnly);
         ui->seekTime->setIcon(KIcon(iconName));
+        if (m_playlist->loadingState() == Playlist::Loading) {
+            ui->seekTime->setToolTip("Loading playlist...");
+        } else if (m_media->state() == Phonon::BufferingState) {
+            ui->seekTime->setToolTip("Buffering...");
+        } else {
+            ui->seekTime->setToolTip("Loading...");
+        }
         QTimer::singleShot(100, this, SLOT(showLoading()));
     }
 }
@@ -624,6 +687,7 @@ void MainWindow::updateMuteStatus(bool muted)
 void MainWindow::mediaListChanged()
 {
     ui->listTitle->setText(m_mediaItemModel->mediaListProperties().name);
+    ui->listSummary->setText(m_mediaItemModel->mediaListProperties().summary);
     
     ui->mediaView->header()->setStretchLastSection(false);
     ui->mediaView->header()->setResizeMode(0, QHeaderView::Stretch);
@@ -658,6 +722,8 @@ void MainWindow::mediaSelectionChanged (const QItemSelection & selected, const Q
         if ((listItemType == "Audio") || (listItemType == "Video") || (listItemType == "Image")) {
             if (!m_mediaItemModel->mediaItemAt(0).url.startsWith("DVDTRACK") && !m_mediaItemModel->mediaItemAt(0).url.startsWith("CDTRACK")) {
                 ui->showInfo->setVisible(true);
+                ui->infoSep1->setVisible(true);
+                ui->infoSep2->setVisible(true);
             }
         }
     } else {
@@ -666,6 +732,8 @@ void MainWindow::mediaSelectionChanged (const QItemSelection & selected, const Q
             ui->playAll->setVisible(true);
         }
         ui->showInfo->setVisible(false);
+        ui->infoSep1->setVisible(false);
+        ui->infoSep2->setVisible(false);
     }
     ui->saveInfo->setVisible(false);
     Q_UNUSED(selected);
@@ -679,7 +747,7 @@ void MainWindow::audioListsSelectionChanged(const QItemSelection & selected, con
         int selectedRow = selected.indexes().at(0).row();
         currentProperties.name = m_audioListsModel->mediaItemAt(selectedRow).title;
         currentProperties.lri = m_audioListsModel->mediaItemAt(selectedRow).url;
-        if (m_mediaItemModel->mediaListProperties().name != currentProperties.name) {
+        if (m_mediaItemModel->mediaListProperties().lri != currentProperties.lri) {
             m_mediaItemModel->clearMediaListData();
             m_mediaItemModel->setMediaListProperties(currentProperties);
             m_mediaItemModel->load();
@@ -689,6 +757,8 @@ void MainWindow::audioListsSelectionChanged(const QItemSelection & selected, con
             ui->mediaViewHolder->setCurrentIndex(0);
             ui->saveInfo->setVisible(false);
             ui->showInfo->setVisible(false);
+            ui->infoSep1->setVisible(false);
+            ui->infoSep2->setVisible(false);
         }
     }
     Q_UNUSED(deselected);
@@ -709,7 +779,7 @@ void MainWindow::videoListsSelectionChanged(const QItemSelection & selected, con
         int selectedRow = selected.indexes().at(0).row();
         currentProperties.name = m_videoListsModel->mediaItemAt(selectedRow).title;
         currentProperties.lri = m_videoListsModel->mediaItemAt(selectedRow).url;
-        if (m_mediaItemModel->mediaListProperties().name != currentProperties.name) {
+        if (m_mediaItemModel->mediaListProperties().lri != currentProperties.lri) {
             m_mediaItemModel->clearMediaListData();
             m_mediaItemModel->setMediaListProperties(currentProperties);
             m_mediaItemModel->load();
@@ -718,7 +788,9 @@ void MainWindow::videoListsSelectionChanged(const QItemSelection & selected, con
             ui->previous->setVisible(false);
             ui->mediaViewHolder->setCurrentIndex(0);
             ui->saveInfo->setVisible(false);
-            ui->showInfo->setVisible(false);
+            ui->showInfo->setVisible(false);            
+            ui->infoSep1->setVisible(false);
+            ui->infoSep2->setVisible(false);
         }
     }
     Q_UNUSED(deselected);
@@ -738,6 +810,17 @@ void MainWindow::playlistChanged()
     ui->playlistView->header()->setStretchLastSection(false);
     ui->playlistView->header()->setResizeMode(0, QHeaderView::Stretch);
     ui->playlistView->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+    if (!m_showQueue) {
+        ui->playlistName->setText("<b>Playlist</b>");
+        if (m_playlist->playlistModel()->rowCount() > 0) {
+            QString duration = Utilities::mediaListDurationText(m_playlist->playlistModel()->mediaList());
+            ui->playlistDuration->setText(QString("%1 items, %2")
+                .arg(m_playlist->playlistModel()->rowCount())
+                .arg(duration));
+        } else {
+            ui->playlistDuration->setText(QString());
+        }
+    }
 }
 
 void MainWindow::nowPlayingChanged()
@@ -776,9 +859,10 @@ void MainWindow::hidePlayButtons()
     ui->playAll->setVisible(false);
 }
 
-void MainWindow::updateListTitle()
+void MainWindow::updateListHeader()
 {
     ui->listTitle->setText(m_mediaItemModel->mediaListProperties().name);
+    ui->listSummary->setText(m_mediaItemModel->mediaListProperties().summary);
 }
 
 
@@ -964,20 +1048,26 @@ void MainWindow::updateCachedDevicesList()
 
 bool MainWindow::eventFilter(QObject *obj, QEvent *event)
 {
-    if ((event->type() == QEvent::Enter)) {
-        //Hide the widgets in the Now Playing view
-        if ((ui->stackedWidget->currentIndex() == 1) && (isFullScreen()) && (!ui->contextStack->isVisible())) {
-            ui->widgetSet->setVisible(false);
-            ui->nowPlayingToolbar->setVisible(false);
-        }
-    } else if ((event->type() == QEvent::Leave)) {
-        //Show the widgets in the Now Playing view
-        if ((ui->stackedWidget->currentIndex() == 1) && (isFullScreen())) {
-            ui->widgetSet->setVisible(true);
-            ui->nowPlayingToolbar->setVisible(true);
-        }
-    }
-    
+	if (isFullScreen()
+			&& ui->stackedWidget->currentIndex() == 1
+			&& event->type() == QEvent::MouseMove) {
+
+		QMouseEvent * mouseEvent = (QMouseEvent *)event;
+		QWidget* widget = (QWidget* )obj;
+
+		if (mouseEvent->y() <= ui->nowPlayingToolbar->height() ||
+				widget->height() - mouseEvent->y() <= ui->widgetSet->height()) {
+
+			//Show the widgets in the Now Playing view
+			ui->widgetSet->setVisible(true);
+			ui->nowPlayingToolbar->setVisible(true);
+		} else {
+			//Hide the widgets in the Now Playing view
+			ui->widgetSet->setVisible(false);
+			ui->nowPlayingToolbar->setVisible(false);
+		}
+	}
+
     // standard event processing
     return QObject::eventFilter(obj, event);
 }
@@ -1041,6 +1131,11 @@ void MainWindow::setAboutData(KAboutData *aboutData)
     m_aboutData = aboutData;
 }
 
+KAboutData * MainWindow::aboutData()
+{
+    return m_aboutData;
+}
+
 Playlist * MainWindow::playlist()
 {
     return m_playlist;
@@ -1049,4 +1144,9 @@ Playlist * MainWindow::playlist()
 Phonon::AudioOutput * MainWindow::audioOutput()
 {
     return m_audioOutput;
+}
+
+InfoManager * MainWindow::infoManager()
+{
+    return m_infoManager;
 }
