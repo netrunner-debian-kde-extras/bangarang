@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>720</width>
+    <width>724</width>
     <height>480</height>
    </rect>
   </property>
@@ -43,7 +43,16 @@
         <property name="spacing">
          <number>2</number>
         </property>
-        <property name="margin">
+        <property name="leftMargin">
+         <number>1</number>
+        </property>
+        <property name="topMargin">
+         <number>0</number>
+        </property>
+        <property name="rightMargin">
+         <number>1</number>
+        </property>
+        <property name="bottomMargin">
          <number>0</number>
         </property>
         <item>
@@ -278,7 +287,7 @@
                  <number>0</number>
                 </property>
                 <property name="currentIndex">
-                 <number>0</number>
+                 <number>1</number>
                 </property>
                 <property name="tabSpacing">
                  <number>0</number>
@@ -317,7 +326,7 @@
                   <item>
                    <widget class="QStackedWidget" name="audioListsStack">
                     <property name="currentIndex">
-                     <number>2</number>
+                     <number>0</number>
                     </property>
                     <widget class="QWidget" name="audioListsPage">
                      <layout class="QVBoxLayout" name="verticalLayout_22">
@@ -740,8 +749,8 @@
                   <rect>
                    <x>0</x>
                    <y>0</y>
-                   <width>131</width>
-                   <height>224</height>
+                   <width>154</width>
+                   <height>324</height>
                   </rect>
                  </property>
                  <attribute name="label">
@@ -757,7 +766,7 @@
                   <item>
                    <widget class="QStackedWidget" name="videoListsStack">
                     <property name="currentIndex">
-                     <number>2</number>
+                     <number>0</number>
                     </property>
                     <widget class="QWidget" name="page_4">
                      <layout class="QVBoxLayout" name="verticalLayout_23">
@@ -1615,7 +1624,7 @@
                  </size>
                 </property>
                 <property name="autoFillBackground">
-                 <bool>false</bool>
+                 <bool>true</bool>
                 </property>
                 <layout class="QHBoxLayout" name="horizontalLayout_21">
                  <property name="leftMargin">
@@ -5234,6 +5243,9 @@ color: rgb(255, 255, 255);</string>
                              <height>0</height>
                             </size>
                            </property>
+                           <property name="acceptDrops">
+                            <bool>false</bool>
+                           </property>
                            <property name="frameShape">
                             <enum>QFrame::NoFrame</enum>
                            </property>
@@ -5247,7 +5259,7 @@ color: rgb(255, 255, 255);</string>
                             <bool>true</bool>
                            </property>
                            <property name="dragDropMode">
-                            <enum>QAbstractItemView::InternalMove</enum>
+                            <enum>QAbstractItemView::DragDrop</enum>
                            </property>
                            <property name="alternatingRowColors">
                             <bool>true</bool>
@@ -5373,13 +5385,13 @@ color: rgb(255, 255, 255);</string>
                <number>0</number>
               </property>
               <property name="leftMargin">
-               <number>0</number>
+               <number>1</number>
               </property>
               <property name="topMargin">
                <number>2</number>
               </property>
               <property name="rightMargin">
-               <number>0</number>
+               <number>1</number>
               </property>
               <property name="bottomMargin">
                <number>0</number>
@@ -5849,43 +5861,61 @@ color: rgb(255, 255, 255);</string>
   </customwidget>
  </customwidgets>
  <tabstops>
-  <tabstop>Filter</tabstop>
-  <tabstop>mediaView</tabstop>
-  <tabstop>infoView</tabstop>
-  <tabstop>nowPlaying</tabstop>
-  <tabstop>previous</tabstop>
-  <tabstop>playAll</tabstop>
-  <tabstop>playSelected</tabstop>
-  <tabstop>saveInfo</tabstop>
-  <tabstop>addVideoList</tabstop>
-  <tabstop>addAudioList</tabstop>
-  <tabstop>removeAudioList</tabstop>
-  <tabstop>configureAudioList</tabstop>
-  <tabstop>configureVideoList</tabstop>
-  <tabstop>removeVideoList</tabstop>
   <tabstop>collectionButton</tabstop>
+  <tabstop>fullScreen</tabstop>
+  <tabstop>seekTime</tabstop>
+  <tabstop>volumeIcon</tabstop>
   <tabstop>mediaPrevious</tabstop>
   <tabstop>mediaPlayPause</tabstop>
   <tabstop>mediaNext</tabstop>
-  <tabstop>volumeIcon</tabstop>
-  <tabstop>fullScreen</tabstop>
-  <tabstop>volumeSlider</tabstop>
-  <tabstop>seekSlider</tabstop>
-  <tabstop>sortList</tabstop>
-  <tabstop>showInfo</tabstop>
   <tabstop>showPlaylist</tabstop>
-  <tabstop>nowPlayingView</tabstop>
+  <tabstop>showMenu</tabstop>
   <tabstop>showQueue</tabstop>
   <tabstop>clearPlaylist</tabstop>
   <tabstop>repeat</tabstop>
   <tabstop>shuffle</tabstop>
   <tabstop>playlistView</tabstop>
-  <tabstop>seekTime</tabstop>
+  <tabstop>Filter</tabstop>
   <tabstop>audioLists</tabstop>
+  <tabstop>mediaView</tabstop>
+  <tabstop>previous</tabstop>
+  <tabstop>playAll</tabstop>
+  <tabstop>playSelected</tabstop>
+  <tabstop>nowPlaying</tabstop>
+  <tabstop>sortList</tabstop>
+  <tabstop>saveInfo</tabstop>
+  <tabstop>removeVideoList</tabstop>
+  <tabstop>nowPlayingView</tabstop>
+  <tabstop>addVideoList</tabstop>
+  <tabstop>removeAudioList</tabstop>
+  <tabstop>addAudioList</tabstop>
+  <tabstop>showInfo</tabstop>
+  <tabstop>configureVideoList</tabstop>
+  <tabstop>infoView</tabstop>
+  <tabstop>configureAudioList</tabstop>
   <tabstop>aCancelSaveList</tabstop>
   <tabstop>saveAudioList</tabstop>
   <tabstop>videoLists</tabstop>
-  <tabstop>showMenu</tabstop>
+  <tabstop>aListSourceView</tabstop>
+  <tabstop>aListSourceSelection</tabstop>
+  <tabstop>aListSourcePlaylist</tabstop>
+  <tabstop>aNewListName</tabstop>
+  <tabstop>aslsListName</tabstop>
+  <tabstop>aslsSave</tabstop>
+  <tabstop>aslsCancel</tabstop>
+  <tabstop>vListSourceSelection</tabstop>
+  <tabstop>vListSourceView</tabstop>
+  <tabstop>vListSourcePlaylist</tabstop>
+  <tabstop>vNewListName</tabstop>
+  <tabstop>saveVideoList</tabstop>
+  <tabstop>vCancelSaveList</tabstop>
+  <tabstop>vslsListName</tabstop>
+  <tabstop>vslsSave</tabstop>
+  <tabstop>vslsCancel</tabstop>
+  <tabstop>showMediaViewMenu</tabstop>
+  <tabstop>editInfo</tabstop>
+  <tabstop>saveShortCuts</tabstop>
+  <tabstop>cancelEditShortcuts</tabstop>
  </tabstops>
  <resources/>
  <connections/>

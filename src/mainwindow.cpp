@@ -223,6 +223,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     ui->listSummary->setFont(KGlobalSettings::smallestReadableFont());
     ui->playlistDuration->setFont(KGlobalSettings::smallestReadableFont());
     ui->playbackMessage->clear();
+    ui->collectionButton->setFocus();
     updateSeekTime(0);
     showApplicationBanner();
     updateCachedDevicesList();
@@ -353,6 +354,7 @@ void MainWindow::on_nowPlaying_clicked()
 void MainWindow::on_collectionButton_clicked()
 {
     ui->stackedWidget->setCurrentIndex(0); // Show Collection page
+    ui->collectionButton->setFocus();
 }
 
 void MainWindow::on_showPlaylist_clicked(bool checked)
@@ -601,11 +603,13 @@ void MainWindow::on_showQueue_clicked()
     m_showQueue = !m_showQueue;
     if (m_showQueue) {
         ui->playlistView->setModel(m_playlist->queueModel());
+        ui->playlistView->setDragDropMode(QAbstractItemView::InternalMove);
         ui->showQueue->setToolTip(i18n("<b>Showing Upcoming</b><br>Click to show playlist"));
         ui->playlistName->setText(i18n("<b>Playlist</b>(Upcoming)"));
         ui->showQueue->setIcon(KIcon("bangarang-preview"));
     } else {
         ui->playlistView->setModel(m_playlist->playlistModel());
+        ui->playlistView->setDragDropMode(QAbstractItemView::DragDrop);
         ui->showQueue->setToolTip(i18n("Show Upcoming"));
         playlistChanged();
         ui->showQueue->setIcon(turnIconOff(KIcon("bangarang-preview"), QSize(22, 22)));
@@ -786,13 +790,20 @@ void MainWindow::delayedNotificationHide()
 
 void MainWindow::sourceInfoUpdated(MediaItem mediaItem)
 {
-    ui->notificationText->setText(i18n("Updated info for ") + QString("<i>%1, %2</i>").arg(mediaItem.title).arg(mediaItem.subTitle));
+    QFontMetrics fm =  ui->notificationText->fontMetrics();
+    QString notificationText = i18n("Updated info for ") + QString("<i>%1, %2</i>").arg(mediaItem.title).arg(mediaItem.subTitle);
+    notificationText = fm.elidedText(notificationText, Qt::ElideMiddle, ui->notificationText->width());
+    
+    ui->notificationText->setText(notificationText);
     ui->notificationWidget->setVisible(true);
 }
 
 void MainWindow::sourceInfoRemoved(QString url)
 {
-    ui->notificationText->setText(i18n("Removed info for ") + QString("<i>%1</i>").arg(url));
+    QFontMetrics fm =  ui->notificationText->fontMetrics();
+    QString notificationText = i18n("Removed info for ") + QString("<i>%1</i>").arg(url);
+    notificationText = fm.elidedText(notificationText, Qt::ElideMiddle, ui->notificationText->width());
+    ui->notificationText->setText(notificationText);
     ui->notificationWidget->setVisible(true);
 }
 

@@ -268,7 +268,7 @@ void Playlist::stop()
     emit playlistFinished();
 }
 
-void Playlist::playMediaList(QList<MediaItem> mediaList)
+void Playlist::playMediaList(const QList<MediaItem> &mediaList)
 {
     //Clear playlist
     clearPlaylist();
@@ -288,7 +288,7 @@ void Playlist::playMediaList(QList<MediaItem> mediaList)
 //--- Playlist data control methods ---
 //----------------------------------------
 
-void Playlist::addMediaList(QList<MediaItem> mediaList)
+void Playlist::addMediaList(const QList<MediaItem> &mediaList)
 {
     int startingRow = m_currentPlaylist->rowCount();
     for (int i = 0; i < mediaList.count(); ++i) {
@@ -297,7 +297,7 @@ void Playlist::addMediaList(QList<MediaItem> mediaList)
     }
 }
 
-void Playlist::addMediaItem(MediaItem mediaItem)
+void Playlist::addMediaItem(const MediaItem &mediaItem)
 {
     int startingRow = m_currentPlaylist->rowCount();
     m_currentPlaylist->loadMediaItem(mediaItem, true);
@@ -786,7 +786,7 @@ void Playlist::metaDataChanged()
         if ((mediaItem.type == "Audio") && (mediaItem.fields["audioType"].toString() == "Audio Stream")) {
             
             mediaItem.subTitle = m_mediaObject->metaData("TITLE").join(" ");
-            m_nowPlaying->replaceMediaItemAt(0, mediaItem);
+            m_nowPlaying->replaceMediaItemAt(0, mediaItem, true);
         }
     }
 }
