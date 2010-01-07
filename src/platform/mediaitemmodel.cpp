@@ -20,6 +20,7 @@
 #include "listengine.h"
 #include "listenginefactory.h"
 #include "medialistcache.h"
+#include "utilities.h"
 
 #include <QFontMetrics>
 #include <QDateTime>
@@ -39,6 +40,8 @@ MediaItemModel::MediaItemModel(QObject * parent) : QStandardItemModel(parent)
     m_mediaListCache = new MediaListCache(parent);
     m_cacheThreshold = 3000; //default to 3 second loading threshold for adding to cache
     m_forceRefreshFromSource = false;
+    m_loadSources = false;
+    m_reload = false;
 }
 
 MediaItemModel::~MediaItemModel() 
@@ -85,7 +88,7 @@ MediaListProperties MediaItemModel::mediaListProperties()
     return m_mediaListProperties;
 }
 
-void MediaItemModel::setMediaListProperties(MediaListProperties mediaListProperties)
+void MediaItemModel::setMediaListProperties(const MediaListProperties &mediaListProperties)
 {
     if (m_mediaListProperties.lri != mediaListProperties.lri) {
         setLoadingState(false);
@@ -104,7 +107,7 @@ MediaItem MediaItemModel::mediaItemAt(int row)
     return m_mediaList.at(row);
 }
 
-int MediaItemModel::rowOfUrl(QString url)
+int MediaItemModel::rowOfUrl(const QString &url)
 {
     return m_urlList.indexOf(url);
 }
@@ -146,28 +149,44 @@ void MediaItemModel::load()
             m_forceRefreshFromSource = false;
         }
     }
+    m_loadSources = false;
 }
 
 void MediaItemModel::reload()
 {
-    if (!m_mediaListProperties.lri.isEmpty()) {
+    m_reload = true;
+    if (m_loadSources) {
+        // If the model was populated using loadSource then reload 
+        QList<MediaItem> mediaList = m_mediaListForLoadSources;
+        clearMediaListData();
+        loadSources(mediaList);
+    } else if (!m_mediaListProperties.lri.isEmpty()) {
         clearMediaListData();
         m_forceRefreshFromSource = true;
         load();
     }
 }
 
-void MediaItemModel::loadMediaList(QList<MediaItem> mediaList, bool emitMediaListChanged)
+void MediaItemModel::loadMediaList(const QList<MediaItem> &mediaList, bool emitMediaListChanged, bool updateExisting)
 {
     for (int i = 0 ; i < mediaList.count() ; ++i) {
-        loadMediaItem(mediaList.at(i));
+        if (updateExisting) {
+            int rowOfExisting = rowOfUrl(mediaList.at(i).url);
+            if (rowOfExisting != -1) {
+                replaceMediaItemAt(rowOfExisting, mediaList.at(i));
+            } else {
+                loadMediaItem(mediaList.at(i));
+            }
+        } else {
+            loadMediaItem(mediaList.at(i));
+        }
     }
     if (emitMediaListChanged) {
         emit mediaListChanged();
     }
 }
 
-void MediaItemModel::loadMediaItem(MediaItem mediaItem, bool emitMediaListChanged)
+void MediaItemModel::loadMediaItem(const MediaItem &mediaItem, bool emitMediaListChanged)
 {
     m_mediaList << mediaItem;
     m_urlList << mediaItem.url;
@@ -232,8 +251,13 @@ void MediaItemModel::actionActivated(QModelIndex index)
     }   
 }
 
-void MediaItemModel::loadSources(QList<MediaItem> mediaList)
+void MediaItemModel::loadSources(const QList<MediaItem> &mediaList)
 {
+
+    if (mediaList.count() == 0) {
+        return;
+    }
+    
     setLoadingState(true);
     
     //Load data only for media sources
@@ -241,6 +265,7 @@ void MediaItemModel::loadSources(QList<MediaItem> mediaList)
     m_subRequestSignatures.clear();
     m_subRequestsDone = 0;
     bool onlySources = true;
+    QList<MediaItem> categories;
     m_requestSignature = m_listEngineFactory->generateRequestSignature();
     for (int i = 0; i < mediaList.count(); ++i) {
         if ((mediaList.at(i).type == "Audio") || (mediaList.at(i).type == "Video") || (mediaList.at(i).type == "Image")){
@@ -250,6 +275,7 @@ void MediaItemModel::loadSources(QList<MediaItem> mediaList)
             }
         } else if (mediaList.at(i).type == "Category") {
             onlySources = false;
+            categories.append(mediaList.at(i));
             if (mediaList.count() == 1) {
                 MediaListProperties mediaListProperties;
                 mediaListProperties.lri =  mediaList.at(i).url;
@@ -289,10 +315,10 @@ void MediaItemModel::loadSources(QList<MediaItem> mediaList)
         emit mediaListChanged();
     } else {
         //Launch load requests
-        for (int i = 0; i < mediaList.count(); ++i) {
+        for (int i = 0; i < categories.count(); ++i) {
             MediaListProperties mediaListProperties;
-            mediaListProperties.lri = mediaList.at(i).url;
-            mediaListProperties.name = mediaList.at(i).title;
+            mediaListProperties.lri = categories.at(i).url;
+            mediaListProperties.name = categories.at(i).title;
             if (m_listEngineFactory->engineExists(mediaListProperties.engine())) {
                 
                 ListEngine * listEngine = m_listEngineFactory->availableListEngine(mediaListProperties.engine());
@@ -332,6 +358,9 @@ void MediaItemModel::loadSources(QList<MediaItem> mediaList)
             }
         }
     }
+    
+    m_loadSources = true;
+    m_mediaListForLoadSources = mediaList;
 }
 
 void MediaItemModel::addResults(QString requestSignature, QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done, QString subRequestSignature)
@@ -348,12 +377,14 @@ void MediaItemModel::addResults(QString requestSignature, QList<MediaItem> media
    if ((mediaListProperties.lri == m_mediaListProperties.lri) || (requestSignature == m_requestSignature)) {
         if (m_subRequestSignatures.count() == 0) {
             setLoadingState(false);
-            loadMediaList(mediaList);
+            loadMediaList(mediaList, false, true);
             m_mediaListProperties = mediaListProperties;
             if (done) {
                 if (rowCount() == 0) {
                     showNoResultsMessage();
                 }
+                m_reload = false;
+                m_lriIsLoadable = true;
                 emit mediaListChanged();
             }
         } else {
@@ -370,18 +401,23 @@ void MediaItemModel::addResults(QString requestSignature, QList<MediaItem> media
                         //All the subrequests results are in, go ahead and load results in correct order
                         int count = 0;
                         for (int i = 0; i < m_subRequestMediaLists.count(); ++i) {
-                            loadMediaList(m_subRequestMediaLists.at(i));
+                            loadMediaList(m_subRequestMediaLists.at(i), false, true);
                             count += m_subRequestMediaLists.at(i).count();
                         }
                         if (rowCount() == 0) {
                             showNoResultsMessage();
                         }
-                        m_mediaListProperties.lri = QString();
-                        m_mediaListProperties.name = i18n("Multiple %1", m_mediaListProperties.name);
+                        //Need a basic lri so updateInfo and removeInfo can be performed by a list engine
+                        m_mediaListProperties.lri = mediaListProperties.engine(); 
+                        if (!m_reload) {
+                            m_mediaListProperties.name = i18n("Multiple %1", m_mediaListProperties.name);
+                        }
                         m_mediaListProperties.summary = i18np("1 item", "%1 items", count);
                         m_subRequestMediaLists.clear();
                         m_subRequestSignatures.clear();
                         m_subRequestsDone = 0;
+                        m_reload = false;
+                        m_lriIsLoadable = false;
                         emit mediaListChanged();
                     }
                 }
@@ -428,9 +464,13 @@ void MediaItemModel::removeMediaItem(QString url)
 
 void MediaItemModel::clearMediaListData(bool emitMediaListChanged)
 {
+    disconnect(this, SIGNAL(rowsRemoved(const QModelIndex &, int, int)), this, SLOT(synchRemoveRows(const QModelIndex &, int, int)));
     removeRows(0, rowCount());
     m_mediaList.clear();
     m_urlList.clear();
+    connect(this, SIGNAL(rowsRemoved(const QModelIndex &, int, int)), this, SLOT(synchRemoveRows(const QModelIndex &, int, int)));
+    m_loadSources = false;
+    m_mediaListForLoadSources.clear();
     if (emitMediaListChanged) {
         emit mediaListChanged();
     }
@@ -451,7 +491,7 @@ void MediaItemModel::removeMediaItemAt(int row, bool emitMediaListChanged)
     }
 }
 
-void MediaItemModel::replaceMediaItemAt(int row, MediaItem mediaItem, bool emitMediaListChanged)
+void MediaItemModel::replaceMediaItemAt(int row, const MediaItem &mediaItem, bool emitMediaListChanged)
 {
     m_mediaList.replace(row, mediaItem);
     m_urlList.replace(row, mediaItem.url);
@@ -565,7 +605,7 @@ QList<QStandardItem *> MediaItemModel::rowDataFromMediaItem(MediaItem mediaItem)
     } else if (mediaItem.type == "Category") {
        KIcon categoryActionIcon;
        QString tooltip;
-       categoryActionIcon = KIcon("system-run");
+       categoryActionIcon = KIcon("bangarang-category-browse");
        if (mediaItem.url.startsWith("music://songs")) {
            tooltip = "Show Songs";
        } else if (mediaItem.url.startsWith("music://albums")) {
@@ -596,10 +636,11 @@ Qt::ItemFlags MediaItemModel::flags(const QModelIndex &index) const
     //Qt::ItemFlags defaultFlags = QStandardItemModel::flags(index);
     Qt::ItemFlags defaultFlags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
     
-    if (index.isValid())
-        return Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled |defaultFlags;
-    else
-        return defaultFlags;
+    if (index.isValid()) {
+        return Qt::ItemIsDragEnabled | Qt::ItemIsDropEnabled | defaultFlags;
+    } else {
+        return Qt::ItemIsDropEnabled | defaultFlags;
+    }
 }
 
 QStringList MediaItemModel::mimeTypes() const
@@ -618,7 +659,7 @@ QMimeData *MediaItemModel::mimeData(const QModelIndexList &indexes) const
         if (index.isValid() && index.column() != 1) {
             QUrl url = QUrl(data(index, MediaItem::UrlRole).toString());
             urls << url;
-            indexList += QString("%1,").arg(index.row());
+            indexList += QString("BangarangRow:%1,").arg(index.row());
         }
     }
     
@@ -650,36 +691,57 @@ bool MediaItemModel::dropMimeData(const QMimeData *data,
     }
     
     QList<QUrl> urls = data->urls();
-    QStringList rowsToMove = data->text().split(",", QString::SkipEmptyParts);
+    
+    bool internalMove = false;
+    QStringList rowsToMove;
+    if (data->text().startsWith("BangarangRow:")) {
+        rowsToMove = data->text().split(",", QString::SkipEmptyParts);
+        internalMove = true;
+    }
 
     //insert rows into model
-    QList<MediaItem> mediaItemsToMove;
+    QList<MediaItem> mediaItemsInserted;
     int insertionRow = beginRow;
     for (int i = 0; i < urls.count(); i++) {
-        if (rowsToMove.count() > 0) {
-            int rowToMove = rowsToMove.at(i).toInt();
+        if (internalMove) {
+            QString rowEntry = rowsToMove.at(i);
+            int rowToMove = rowEntry.remove("BangarangRow:").toInt();
             MediaItem mediaItem = mediaItemAt(rowToMove);
-            mediaItemsToMove << mediaItem;
+            mediaItemsInserted << mediaItem;
             QList<QStandardItem *> rowItems = rowDataFromMediaItem(mediaItem);
             insertRow(insertionRow, rowItems);
             insertionRow = insertionRow + 1;
+        } else {
+            QString url = QUrl::fromPercentEncoding(urls.at(i).toString().toUtf8());
+            if (Utilities::isAudio(url) || Utilities::isVideo(url)) {
+                MediaItem mediaItem = Utilities::mediaItemFromUrl(KUrl(url));
+                mediaItemsInserted << mediaItem;
+                QList<QStandardItem *> rowItems = rowDataFromMediaItem(mediaItem);
+                insertRow(insertionRow, rowItems);
+                insertionRow = insertionRow + 1;
+            }
         }
     }
     
     //Update cached data to reflect inserted rows
     insertionRow = beginRow;
-    for (int i = 0; i < urls.count(); i++) {
-        MediaItem mediaItem = mediaItemsToMove.at(i);
+    for (int i = 0; i < mediaItemsInserted.count(); i++) {
+        MediaItem mediaItem = mediaItemsInserted.at(i);
         m_mediaList.insert(insertionRow, mediaItem);
         m_urlList.insert(insertionRow, mediaItem.url);
         insertionRow = insertionRow + 1;
     }
-    m_emitChangedAfterDrop = true;
+    
+    if (internalMove) {
+        m_emitChangedAfterDrop = true;
+    } else {
+        emit mediaListChanged();
+    }
     
     return true;
 }
 
-void MediaItemModel::removeSourceInfo(QList<MediaItem> mediaList)
+void MediaItemModel::removeSourceInfo(const QList<MediaItem> &mediaList)
 {
     //Assumes that items in mediaList are items currently in model
     if (m_listEngineFactory->engineExists(m_mediaListProperties.engine())) {
@@ -688,7 +750,7 @@ void MediaItemModel::removeSourceInfo(QList<MediaItem> mediaList)
     }
 }
 
-void MediaItemModel::updateSourceInfo(QList<MediaItem> mediaList)
+void MediaItemModel::updateSourceInfo(const QList<MediaItem> &mediaList)
 {
     //Assumes that items in mediaList are items currently in model
     if (m_listEngineFactory->engineExists(m_mediaListProperties.engine())) {
@@ -717,3 +779,7 @@ MediaListCache * MediaItemModel::mediaListCache()
     return m_mediaListCache;
 }
 
+bool MediaItemModel::lriIsLoadable()
+{
+    return m_lriIsLoadable;
+}

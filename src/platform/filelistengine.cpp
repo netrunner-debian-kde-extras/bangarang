@@ -217,7 +217,7 @@ void FileListEngine::activateAction()
     }
 }
 
-QFileInfoList FileListEngine::crawlDir(QDir dir, QStringList mimeFilter)
+QFileInfoList FileListEngine::crawlDir(const QDir &dir, const QStringList &mimeFilter)
 {
     QFileInfoList returnList;
     QFileInfoList fileList = dir.entryInfoList(QDir::Files, QDir::Name);
@@ -238,7 +238,7 @@ QFileInfoList FileListEngine::crawlDir(QDir dir, QStringList mimeFilter)
     return returnList;
 }
 
-KUrl::List FileListEngine::QFileInfoListToKUrlList(QFileInfoList fileInfoList)
+KUrl::List FileListEngine::QFileInfoListToKUrlList(const QFileInfoList &fileInfoList)
 {
     KUrl::List urlList;
     for (int i = 0; i < fileInfoList.count(); ++i) {
@@ -247,7 +247,7 @@ KUrl::List FileListEngine::QFileInfoListToKUrlList(QFileInfoList fileInfoList)
     return urlList;
 }
 
-QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
+QList<MediaItem> FileListEngine::readAudioUrlList(const KUrl::List &fileList)
 {
     MediaVocabulary mediaVocabulary = MediaVocabulary();
     QList<MediaItem> mediaList;
@@ -263,7 +263,7 @@ QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
             continue;
         } 
         mediaItem.artwork = KIcon("audio-mp4");
-        mediaItem.url = fileList.at(i).url();
+        mediaItem.url = fileList.at(i).prettyUrl();
         mediaItem.title = fileList.at(i).fileName();
         mediaItem.type = "Audio";
         mediaItem.fields["url"] = mediaItem.url;
@@ -283,18 +283,19 @@ QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
                 KEncodingProber prober(KEncodingProber::Universal);
                 KEncodingProber::ProberState result = prober.feed(tmp.toAscii());
                 if (result != KEncodingProber::NotMe) {
-                    QByteArray encodingname = prober.encoding();
-                    QString track_encoding(encodingname);
-                    if ( ( track_encoding.toLatin1() == "gb18030" ) 
-                        || ( track_encoding.toLatin1() == "big5" )
-                        || ( track_encoding.toLatin1() == "euc-kr" ) 
-                        || ( track_encoding.toLatin1() == "euc-jp" )
-                        || ( track_encoding.toLatin1() == "koi8-r" ) ) {
+                    QByteArray encodingname = prober.encoding().toLower();
+                    if ( prober.confidence() > 0.47
+                        && ( ( encodingname == "gb18030" )
+                        || ( encodingname == "big5" )
+                        || ( encodingname == "euc-kr" )
+                        || ( encodingname == "euc-jp" )
+                        || ( encodingname == "koi8-r" ) ) ) {
                         title = QTextCodec::codecForName(encodingname)->toUnicode(title.toAscii());
                         artist = QTextCodec::codecForName(encodingname)->toUnicode(artist.toAscii());
                         album = QTextCodec::codecForName(encodingname)->toUnicode(album.toAscii());
                         genre = QTextCodec::codecForName(encodingname)->toUnicode(genre.toAscii());
-                    } else if (QTextCodec::codecForLocale()->name().toLower() != "utf-8") {
+                    } else if ((prober.confidence() < 0.3 || encodingname != "utf-8")
+                        && QTextCodec::codecForLocale()->name().toLower() != "utf-8") {
                         title = QTextCodec::codecForLocale()->toUnicode(title.toAscii());
                         artist = QTextCodec::codecForLocale()->toUnicode(artist.toAscii());
                         album = QTextCodec::codecForLocale()->toUnicode(album.toAscii());
@@ -322,10 +323,9 @@ QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
                 Nepomuk::Resource res(mediaItem.url);
                 if (res.exists()) {
                     mediaItem.fields["rating"] = res.rating();
-                    Nepomuk::Resource artworkRes = res.property(mediaVocabulary.artwork()).toResource();
-                    if (artworkRes.isValid()) {
-                        mediaItem.fields["artworkUrl"] = artworkRes.resourceUri().toString();
-                    }
+                    mediaItem.fields["description"] = res.property(mediaVocabulary.description()).toString();
+                    mediaItem.fields["playCount"] = res.property(mediaVocabulary.playCount()).toInt();
+                    mediaItem.fields["lastPlayed"] = res.property(mediaVocabulary.lastPlayed()).toDateTime();
                 }
             }
             //Index all music files
@@ -333,21 +333,20 @@ QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
         } else {
             mediaItem.fields["audioType"] = i18n("Audio Clip");
             if (m_nepomukInited) {
-                Nepomuk::Resource res(mediaItem.url);
-                if (res.exists()) {
-                    QString title = res.property(mediaVocabulary.title()).toString();
-                    if (!title.isEmpty()) {
-                        mediaItem.title = title;
-                        mediaItem.fields["title"] = title;
-                    }
-                    mediaItem.fields["rating"] = res.rating();
-                    Nepomuk::Resource artworkRes = res.property(mediaVocabulary.artwork()).toResource();
-                    if (artworkRes.isValid()) {
-                        mediaItem.fields["artworkUrl"] = artworkRes.resourceUri().toString();
-                    }
-                } else {
-                    //Index Audio Clips not found in nepomuk store
+                bool foundInNepomuk = false;
+                MediaItem foundMediaItem;
+                Nepomuk::Resource res(QUrl(mediaItem.url.toUtf8()));
+                if (res.exists() && (res.hasType(mediaVocabulary.typeAudio()) ||
+                    res.hasType(mediaVocabulary.typeAudioMusic()) ||
+                    res.hasType(mediaVocabulary.typeAudioStream())) ) {
+                    foundMediaItem = Utilities::mediaItemFromNepomuk(res);
+                    foundInNepomuk = true;
+                }
+                if (!foundInNepomuk || foundMediaItem.type.isEmpty()) {
+                    //Index video items not found in nepomuk store
                     m_mediaListToIndex << mediaItem;
+                } else {
+                    mediaItem = foundMediaItem;
                 }
             }
         }
@@ -356,7 +355,7 @@ QList<MediaItem> FileListEngine::readAudioUrlList(KUrl::List fileList)
     return mediaList;
 }
 
-QList<MediaItem> FileListEngine::readVideoUrlList(KUrl::List fileList)
+QList<MediaItem> FileListEngine::readVideoUrlList(const KUrl::List &fileList)
 {
     MediaVocabulary mediaVocabulary = MediaVocabulary();
     mediaVocabulary.setVocabulary(MediaVocabulary::nmm);
@@ -366,7 +365,7 @@ QList<MediaItem> FileListEngine::readVideoUrlList(KUrl::List fileList)
     for (int i = 0; i < fileList.count(); ++i) {
         MediaItem mediaItem;
         mediaItem.artwork = KIcon("video-x-generic");
-        mediaItem.url = fileList.at(i).url();
+        mediaItem.url = fileList.at(i).prettyUrl();
         mediaItem.title = fileList.at(i).fileName();
         mediaItem.type = "Video";
         mediaItem.fields["url"] = mediaItem.url;
@@ -374,138 +373,20 @@ QList<MediaItem> FileListEngine::readVideoUrlList(KUrl::List fileList)
         mediaItem.fields["videoType"] = "Video Clip";
         mediaItem.artwork = KIcon("video-x-generic");
         if (m_nepomukInited) {
-            Nepomuk::Resource res(mediaItem.url);
-            if (res.exists()) {
-                QString title = res.property(mediaVocabulary.title()).toString();
-                if (!title.isEmpty()) {
-                    mediaItem.title = title;
-                    mediaItem.fields["title"] = title;
-                }
-                QString description = res.property(mediaVocabulary.description()).toString();
-                if (!description.isEmpty()) {
-                    mediaItem.fields["description"] = description;
-                }
-                if (res.hasType(mediaVocabulary.typeVideoMovie())) {
-                    mediaItem.artwork = KIcon("tool-animator");
-                    mediaItem.fields["videoType"] = "Movie";
-                    QString synopsis = res.property(mediaVocabulary.videoSynopsis()).toString();
-                    if (!synopsis.isEmpty()) {
-                        mediaItem.fields["synopsis"] = synopsis;
-                    }
-                    QString genre = res.property(mediaVocabulary.videoGenre()).toString();
-                    if (!genre.isEmpty()) {
-                        mediaItem.fields["genre"] = genre;
-                    }
-                    QDate releaseDate = res.property(mediaVocabulary.releaseDate()).toDate();
-                    if (releaseDate.isValid()) {
-                        mediaItem.fields["releaseDate"] = releaseDate;
-                    }
-                    QString writer = res.property(mediaVocabulary.videoWriter()).toString();
-                    if (!writer.isEmpty()) {
-                        mediaItem.fields["writer"] = writer;
-                    }
-                    QString director = res.property(mediaVocabulary.videoDirector()).toString();
-                    if (!director.isEmpty()) {
-                        mediaItem.fields["director"] = director;
-                    }
-                    QString assistantDirector = res.property(mediaVocabulary.videoAssistantDirector()).toString();
-                    if (!assistantDirector.isEmpty()) {
-                        mediaItem.fields["assistantDirector"] = assistantDirector;
-                    }
-                    QString producer = res.property(mediaVocabulary.videoProducer()).toString();
-                    if (!producer.isEmpty()) {
-                        mediaItem.fields["producer"] = producer;
-                    }
-                    QString actor = res.property(mediaVocabulary.videoActor()).toString();
-                    if (!actor.isEmpty()) {
-                        mediaItem.fields["actor"] = actor;
-                    }
-                    QString cinematographer = res.property(mediaVocabulary.videoGenre()).toString();
-                    if (!cinematographer.isEmpty()) {
-                        mediaItem.fields["cinematographer"] = cinematographer;
-                    }
-                    
-                } else if (res.hasType(mediaVocabulary.typeVideoTVShow())) {
-                    mediaItem.artwork = KIcon("video-television");
-                    mediaItem.fields["videoType"] = "TV Show";
-                    Nepomuk::Resource series = res.property(mediaVocabulary.videoSeries()).toResource();
-                    QString seriesName = series.property(mediaVocabulary.title()).toString();
-                    if (!seriesName.isEmpty()) {
-                        mediaItem.fields["seriesName"] = seriesName;
-                        mediaItem.subTitle = seriesName;
-                    }
-                    int season = res.property(mediaVocabulary.videoSeason()).toInt();
-                    if (season !=0 ) {
-                        mediaItem.fields["season"] = season;
-                        if (!mediaItem.subTitle.isEmpty()) {
-                            mediaItem.subTitle = QString("%1 - Season %2")
-                            .arg(mediaItem.subTitle)
-                            .arg(season);
-                        } else {
-                            mediaItem.subTitle = QString("Season %1").arg(season);
-                        }
-                    }
-                    int episode = res.property(mediaVocabulary.videoEpisodeNumber()).toInt();
-                    if (episode !=0 ) {
-                        mediaItem.fields["episode"] = episode;
-                        if (!mediaItem.subTitle.isEmpty()) {
-                            mediaItem.subTitle = i18n("%1 - Episode %2", mediaItem.subTitle, episode);
-                        } else {
-                            mediaItem.subTitle = i18n("Episode %1", episode);
-                        }
-                    }
-                    QString synopsis = res.property(mediaVocabulary.videoSynopsis()).toString();
-                    if (!synopsis.isEmpty()) {
-                        mediaItem.fields["synopsis"] = synopsis;
-                    }
-                    QString genre = res.property(mediaVocabulary.videoGenre()).toString();
-                    if (!genre.isEmpty()) {
-                        mediaItem.fields["genre"] = genre;
-                    }
-                    QDate releaseDate = res.property(mediaVocabulary.releaseDate()).toDate();
-                    if (releaseDate.isValid()) {
-                        mediaItem.fields["releaseDate"] = releaseDate;
-                    }
-                    QString writer = res.property(mediaVocabulary.videoWriter()).toString();
-                    if (!writer.isEmpty()) {
-                        mediaItem.fields["writer"] = writer;
-                    }
-                    QString director = res.property(mediaVocabulary.videoDirector()).toString();
-                    if (!director.isEmpty()) {
-                        mediaItem.fields["director"] = director;
-                    }
-                    QString assistantDirector = res.property(mediaVocabulary.videoAssistantDirector()).toString();
-                    if (!assistantDirector.isEmpty()) {
-                        mediaItem.fields["assistantDirector"] = assistantDirector;
-                    }
-                    QString producer = res.property(mediaVocabulary.videoProducer()).toString();
-                    if (!producer.isEmpty()) {
-                        mediaItem.fields["producer"] = producer;
-                    }
-                    QString actor = res.property(mediaVocabulary.videoActor()).toString();
-                    if (!actor.isEmpty()) {
-                        mediaItem.fields["actor"] = actor;
-                    }
-                    QString cinematographer = res.property(mediaVocabulary.videoGenre()).toString();
-                    if (!cinematographer.isEmpty()) {
-                        mediaItem.fields["cinematographer"] = cinematographer;
-                    }
-                    
-                } else {
-                    mediaItem.fields["videoType"] = "Video Clip";
-                    mediaItem.artwork = KIcon("video-x-generic");
-                }
-                Nepomuk::Resource res(mediaItem.url);
-                if (res.exists()) {
-                    mediaItem.fields["rating"] = res.rating();
-                    Nepomuk::Resource artworkRes = res.property(mediaVocabulary.artwork()).toResource();
-                    if (artworkRes.isValid()) {
-                        mediaItem.fields["artworkUrl"] = artworkRes.resourceUri().toString();
-                    }
-                }
-            } else {
+            bool foundInNepomuk = false;
+            MediaItem foundMediaItem;
+            Nepomuk::Resource res(QUrl(mediaItem.url.toUtf8()));
+            if (res.exists() && (res.hasType(mediaVocabulary.typeVideo()) ||
+                res.hasType(mediaVocabulary.typeVideoMovie()) ||
+                res.hasType(mediaVocabulary.typeVideoTVShow())) ) {
+                foundMediaItem = Utilities::mediaItemFromNepomuk(res);
+                foundInNepomuk = true;
+            }
+            if (!foundInNepomuk) {
                 //Index video items not found in nepomuk store
                 m_mediaListToIndex << mediaItem;
+            } else {
+                mediaItem = foundMediaItem;
             }
         }
         mediaList << mediaItem;
@@ -513,7 +394,7 @@ QList<MediaItem> FileListEngine::readVideoUrlList(KUrl::List fileList)
     return mediaList;
 }
 
-QString FileListEngine::engineFilterFromUrlList(KUrl::List fileList)
+QString FileListEngine::engineFilterFromUrlList(const KUrl::List &fileList)
 {
     QString engineFilter;
     for (int i = 0; i < fileList.count(); i++) {

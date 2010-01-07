@@ -350,9 +350,9 @@ void SavedListsManager::mediaListChanged()
 {
     if (m_parent->m_mediaItemModel->rowCount() > 0) {
         QString listItemType = m_parent->m_mediaItemModel->mediaItemAt(0).type;
-        if (listItemType == "Audio" && m_nepomukInited) {
+        if (listItemType == "Audio" && m_nepomukInited && m_parent->m_mediaItemModel->lriIsLoadable()) {
             ui->aListSourceView->setEnabled(true);
-        } else if (listItemType == "Video" && m_nepomukInited) {
+        } else if (listItemType == "Video" && m_nepomukInited && m_parent->m_mediaItemModel->lriIsLoadable()) {
             ui->vListSourceView->setEnabled(true);
         } else {
             ui->aListSourceView->setChecked(false);
@@ -363,7 +363,7 @@ void SavedListsManager::mediaListChanged()
     }
 }
 
-void SavedListsManager::saveMediaList(QList<MediaItem> mediaList, QString name, QString type, bool append)
+void SavedListsManager::saveMediaList(QList<MediaItem> mediaList, const QString &name, const QString &type, bool append)
 {
     if (!name.isEmpty()) {
         
@@ -432,7 +432,7 @@ void SavedListsManager::saveMediaList(QList<MediaItem> mediaList, QString name, 
     }
 }
 
-void SavedListsManager::saveView(QString name, QString type)
+void SavedListsManager::saveView(const QString &name, const QString &type)
 {
     if (!name.isEmpty()) {
         //Add to saved list index
@@ -519,7 +519,7 @@ void SavedListsManager::updateSavedListsIndex()
     indexFile.close();    
 }
 
-QStringList SavedListsManager::savedListNames(QString type)
+QStringList SavedListsManager::savedListNames(const QString &type)
 {
     QList<QString> savedLists ;
     if (type == "Audio") {
@@ -705,7 +705,7 @@ void SavedListsManager::saveVideoListSettings()
     returnToVideoList();
 }
 
-QString SavedListsManager::savedListLriName(QString lri)
+QString SavedListsManager::savedListLriName(const QString &lri)
 {
     QString name;
     for (int i = 0; i < m_savedAudioLists.count(); i++) {
@@ -716,8 +716,8 @@ QString SavedListsManager::savedListLriName(QString lri)
     }
         
     for (int i = 0; i < m_savedVideoLists.count(); i++) {
-        if (m_savedAudioLists.at(i).endsWith(lri)) {
-            QString indexEntry = m_savedAudioLists.at(i);
+        if (m_savedVideoLists.at(i).endsWith(lri)) {
+            QString indexEntry = m_savedVideoLists.at(i);
             name = indexEntry.split(":::").at(1);
         }
     }
