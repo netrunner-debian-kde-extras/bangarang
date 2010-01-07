@@ -1,5 +1,4 @@
 version=3
 
-opts=filenamemangle=s/.*=(.*)/$1/ \
-http://code.google.com/feeds/p/bangarangissuetracking/downloads/basic \
-    http://code.google.com/p/bangarangissuetracking/downloads/detail\?name=bangarang-(.*)\.tar\.gz
+http://code.google.com/p/bangarangissuetracking/downloads/list \
+    http://bangarangissuetracking.googlecode.com/files/bangarang-(.*)\.tar\.gz
