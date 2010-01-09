@@ -1,8 +1,8 @@
 Source: bangarang
 Section: kde
 Priority: optional
-Maintainer: Ryan Kavanagh <ryanakca@kubuntu.org>
-Uploaders: Debian Multimedia Packages Maintainers <pkg-multimedia-maintainers@lists.alioth.debian.org>
+Maintainer: Debian Multimedia Packages Maintainers <pkg-multimedia-maintainers@lists.alioth.debian.org>
+Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org> , Andreas Marschke <xxtjaxx@gmail.com>
 Build-Depends: debhelper (>= 7),
  pkg-kde-tools (>= 0.5.0),
  cmake,
