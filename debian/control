@@ -10,6 +10,8 @@ Build-Depends: debhelper (>= 7),
  libtag1-dev
 Standards-Version: 3.8.3
 Homepage: http://gitorious.org/bangarang
+Vcs-Browser: http://git.debian.org/?p=pkg-multimedia/bangarang.git
+Vcs-Git: git://git.debian.org/pkg-multimedia/bangarang.git
 
 Package: bangarang
 Architecture: any
