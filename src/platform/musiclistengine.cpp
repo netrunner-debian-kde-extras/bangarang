@@ -50,7 +50,7 @@ MusicListEngine::~MusicListEngine()
 void MusicListEngine::run()
 {
     QThread::setTerminationEnabled(true);
-
+    
     if (m_updateSourceInfo || m_removeSourceInfo) {
         NepomukListEngine::run();
         return;
@@ -131,7 +131,7 @@ void MusicListEngine::run()
             }
             m_mediaListProperties.name = i18n("Artists");
             if (!genre.isEmpty()) {
-                m_mediaListProperties.name = i18n("Artists - %1", genre);
+                m_mediaListProperties.name = i18nc("%1=Name of Genre", "Artists - %1", genre);
             }
             m_mediaListProperties.summary = i18np("1 artist", "%1 artists", mediaList.count());
             m_mediaListProperties.type = QString("Categories");
@@ -390,12 +390,12 @@ void MusicListEngine::run()
         }
     }
     
-    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
     
     //Check if MediaItems in mediaList exist
     QList<MediaItem> mediaItems = Utilities::mediaItemsDontExist(mediaList);
     if (mediaItems.count() > 0) {
-        model()->updateMediaItems(mediaItems);
+        emit updateMediaItems(mediaItems);
     }
     
     m_requestSignature = QString();

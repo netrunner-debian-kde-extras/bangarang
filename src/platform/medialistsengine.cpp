@@ -156,13 +156,13 @@ void MediaListsEngine::run()
             mediaItem.url = "video://movies";
             mediaItem.artwork = KIcon("tool-animator");
             mediaList << mediaItem;
-            mediaItem.title = i18n("Genres");
-            mediaItem.url = "video://genres";
-            mediaItem.artwork = KIcon("flag-green");
-            mediaList << mediaItem;
             mediaItem.title = i18n("TV Shows");
             mediaItem.url = "video://tvshows";
             mediaItem.artwork = KIcon("video-television");
+            mediaList << mediaItem;
+            mediaItem.title = i18n("Genres");
+            mediaItem.url = "video://genres";
+            mediaItem.artwork = KIcon("flag-green");
             mediaList << mediaItem;
             mediaItem.title = i18n("Video Clips");
             mediaItem.url = "video://clips";
@@ -234,7 +234,7 @@ void MediaListsEngine::run()
         }
     }
         
-    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
     m_requestSignature = QString();
     m_subRequestSignature = QString();
     m_loadWhenReady = false;

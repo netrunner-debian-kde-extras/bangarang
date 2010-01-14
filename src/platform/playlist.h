@@ -80,11 +80,9 @@ class Playlist : public QObject
         void clearPlaylist();
         
         /**
-         * Returns the loading state of the Playlist.
-         *
-         * @returns Playlist::State (see enum)
-         */
-        Playlist::State state();
+         * Return the playlist row of the currently playing item
+         **/
+        int rowOfNowPlaying();
         
         /**
          * Returns the Phonon::MediaObject used by Playlist.
@@ -140,6 +138,13 @@ class Playlist : public QObject
         void removeMediaItemAt(int row);
         
         /**
+         * Sets the Media Object the playlist should use
+         *
+         * @param mediaObject media object that playlist will use
+         */
+        void setMediaObject(Phonon::MediaObject *mediaObject);
+        
+        /**
          * Sets the Playlist queuing mode
          *
          * @param mode mode to add MediaItems to the queue. 
@@ -156,6 +161,13 @@ class Playlist : public QObject
          *               been played.
          */
         void setRepeat(bool repeat);
+        
+        /**
+        * Returns the loading state of the Playlist.
+        *
+        * @returns Playlist::State (see enum)
+        */
+        Playlist::State state();
         
     public slots:
         /**

@@ -164,7 +164,13 @@ void SavedListsEngine::run()
     }
     
     m_mediaListProperties.summary = i18np("1 item", "%1 items", mediaList.count());
-    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    
+    //Check if MediaItems in mediaList exist
+    QList<MediaItem> mediaItems = Utilities::mediaItemsDontExist(mediaList);
+    if (mediaItems.count() > 0) {
+        emit updateMediaItems(mediaItems);
+    }
     m_requestSignature = QString();
     m_subRequestSignature = QString();
 }
