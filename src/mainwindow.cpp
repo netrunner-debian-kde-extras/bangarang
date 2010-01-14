@@ -65,6 +65,8 @@
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindowClass)
 {
     qRegisterMetaType<MediaItem>("MediaItem");
+    qRegisterMetaType<MediaListProperties>("MediaListProperties");
+    qRegisterMetaType<QList<MediaItem> >("QList<MediaItem>");
     
     ui->setupUi(this);
     
@@ -90,6 +92,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
         m_nepomukInited = true; //resource manager inited successfully
     } else {
         m_nepomukInited = false; //no resource manager
+        ui->Filter->setVisible(false);
     }
     
     //Set up device notifier
@@ -99,10 +102,13 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     //Set up media object
     m_media = new Phonon::MediaObject(this);
     m_videoWidget =  new Phonon::VideoWidget(ui->videoFrame);
-    m_audioOutput = new Phonon::AudioOutput(this);
-    Phonon::createPath(m_media, m_videoWidget);
-    Phonon::createPath(m_media, m_audioOutput);
+    m_audioOutputMusicCategory = new Phonon::AudioOutput(Phonon::MusicCategory, this);
+    m_audioOutputVideoCategory = new Phonon::AudioOutput(Phonon::VideoCategory, this);
+    m_audioOutput = m_audioOutputMusicCategory; // default to music category;
+    m_videoPath = Phonon::createPath(m_media, m_videoWidget);
+    m_audioPath = Phonon::createPath(m_media, m_audioOutput);
     m_media->setTickInterval(500);
+    m_volume = m_audioOutput->volume();
     
     //Add video widget to video frame on viewer stack
     QVBoxLayout *layout = new QVBoxLayout();
@@ -120,8 +126,12 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
     
     //Connect to media object signals and slots
     connect(m_media, SIGNAL(tick(qint64)), this, SLOT(updateSeekTime(qint64)));
-    connect(ui->volumeIcon, SIGNAL(toggled(bool)), m_audioOutput, SLOT(setMuted(bool)));
-    connect(m_audioOutput, SIGNAL(mutedChanged(bool)), this, SLOT(updateMuteStatus(bool)));
+    connect(ui->volumeIcon, SIGNAL(toggled(bool)), m_audioOutputMusicCategory, SLOT(setMuted(bool)));
+    connect(ui->volumeIcon, SIGNAL(toggled(bool)), m_audioOutputVideoCategory, SLOT(setMuted(bool)));
+    connect(m_audioOutputMusicCategory, SIGNAL(mutedChanged(bool)), this, SLOT(updateMuteStatus(bool)));
+    connect(m_audioOutputMusicCategory, SIGNAL(volumeChanged(qreal)), this, SLOT(volumeChanged(qreal)));
+    connect(m_audioOutputVideoCategory, SIGNAL(mutedChanged(bool)), this, SLOT(updateMuteStatus(bool)));
+    connect(m_audioOutputVideoCategory, SIGNAL(volumeChanged(qreal)), this, SLOT(volumeChanged(qreal)));
     connect(m_media, SIGNAL(stateChanged(Phonon::State, Phonon::State)), this, SLOT(mediaStateChanged(Phonon::State, Phonon::State)));
     
     //Set up Audio lists view 
@@ -648,6 +658,13 @@ void MainWindow::on_showMediaViewMenu_clicked()
 /*----------------------------------------
   -- SLOTS for SIGNALS from Media Object --
   ----------------------------------------*/
+void MainWindow::volumeChanged(qreal newVolume)
+{
+    //Phonon::AudioOutput::volume() only return the volume at app start.
+    //Therefore I need to track volume changes independently.
+    m_volume = newVolume;
+}
+
 void MainWindow::updateSeekTime(qint64 time)
 {
     //Update seek time
@@ -687,9 +704,9 @@ void MainWindow::mediaStateChanged(Phonon::State newstate, Phonon::State oldstat
     if (newstate == Phonon::PlayingState) {
         ui->mediaPlayPause->setIcon(KIcon("media-playback-pause"));
         if (m_media->hasVideo()) {
-	  ui->viewerStack->setCurrentIndex(1);
-	} else {
-	  ui->viewerStack->setCurrentIndex(0);
+            ui->viewerStack->setCurrentIndex(1);
+        } else {
+            ui->viewerStack->setCurrentIndex(0);
         }
         ui->mediaPlayPause->setToolTip(i18n("<b>Playing</b><br>Click to pause<br>Click and hold to stop"));
     } else {
@@ -702,8 +719,35 @@ void MainWindow::mediaStateChanged(Phonon::State newstate, Phonon::State oldstat
     }
     
     if (newstate == Phonon::ErrorState) {
-        ui->playbackMessage->setText(i18n("An error has been encountered during playback"));
+        if (m_media->errorString().isEmpty()) {
+            ui->playbackMessage->setText(i18n("An error has been encountered during playback"));
+        } else {
+            ui->playbackMessage->setText(m_media->errorString());
+        }
         QTimer::singleShot(3000, ui->playbackMessage, SLOT(clear()));
+        
+        //Use a new media object instead and discard
+        //the old media object (whose state appears to be broken after errors) 
+        Phonon::MediaObject *oldMediaObject = m_media;
+        m_media = new Phonon::MediaObject(this);
+        m_videoPath.reconnect(m_media, m_videoWidget);
+        m_audioPath.reconnect(m_media, m_audioOutput);
+        m_media->setTickInterval(500);
+        ui->seekSlider->setMediaObject(m_media);
+        connect(m_media, SIGNAL(tick(qint64)), this, SLOT(updateSeekTime(qint64)));
+        connect(m_media, SIGNAL(stateChanged(Phonon::State, Phonon::State)), this, SLOT(mediaStateChanged(Phonon::State, Phonon::State)));
+        m_playlist->setMediaObject(m_media);
+        delete oldMediaObject;
+        oldMediaObject = 0;
+        
+        if (m_playlist->rowOfNowPlaying() < (m_playlist->playlistModel()->rowCount() - 1)) {
+            m_playlist->playNext();
+        } else {
+            m_playlist->stop();
+        }
+        m_audioOutput->setVolume(m_volume);
+        ui->volumeSlider->setAudioOutput(m_audioOutput);
+        ui->volumeIcon->setChecked(false);
     }
     Q_UNUSED(oldstate);
 }
@@ -754,9 +798,11 @@ void MainWindow::mediaListChanged()
     ui->listTitle->setText(m_mediaItemModel->mediaListProperties().name);
     ui->listSummary->setText(m_mediaItemModel->mediaListProperties().summary);
     
-    ui->mediaView->header()->setStretchLastSection(false);
-    ui->mediaView->header()->setResizeMode(0, QHeaderView::Stretch);
-    ui->mediaView->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+    if (m_mediaItemModel->rowCount() > 0) {
+        ui->mediaView->header()->setStretchLastSection(false);
+        ui->mediaView->header()->setResizeMode(0, QHeaderView::Stretch);
+        ui->mediaView->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+    }
     
     if ((m_mediaItemModel->rowCount() > 0) && (ui->mediaViewHolder->currentIndex() ==0)) {
         QString listItemType = m_mediaItemModel->mediaItemAt(0).type;
@@ -791,7 +837,8 @@ void MainWindow::delayedNotificationHide()
 void MainWindow::sourceInfoUpdated(MediaItem mediaItem)
 {
     QFontMetrics fm =  ui->notificationText->fontMetrics();
-    QString notificationText = i18n("Updated info for ") + QString("<i>%1, %2</i>").arg(mediaItem.title).arg(mediaItem.subTitle);
+	//TODO: I tried fixing this word puzzle, I couldn't test it myself, but it should work. Please check if it really is :-) thanks
+    QString notificationText = i18n("Updated info for <i>%1, %2</i>", mediaItem.title, mediaItem.subTitle);
     notificationText = fm.elidedText(notificationText, Qt::ElideMiddle, ui->notificationText->width());
     
     ui->notificationText->setText(notificationText);
@@ -801,7 +848,8 @@ void MainWindow::sourceInfoUpdated(MediaItem mediaItem)
 void MainWindow::sourceInfoRemoved(QString url)
 {
     QFontMetrics fm =  ui->notificationText->fontMetrics();
-    QString notificationText = i18n("Removed info for ") + QString("<i>%1</i>").arg(url);
+	//TODO: I tried fixing this word puzzle, I couldn't test it myself, but it should work. Please check if it really is :-) thanks
+    QString notificationText = i18n("Removed info for <i>%1</i>", url);
     notificationText = fm.elidedText(notificationText, Qt::ElideMiddle, ui->notificationText->width());
     ui->notificationText->setText(notificationText);
     ui->notificationWidget->setVisible(true);
@@ -903,9 +951,11 @@ void MainWindow::videoListsChanged()
 void MainWindow::playlistChanged()
 {
 
-    ui->playlistView->header()->setStretchLastSection(false);
-    ui->playlistView->header()->setResizeMode(0, QHeaderView::Stretch);
-    ui->playlistView->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+    if (ui->playlistView->model()->rowCount() > 0) {
+        ui->playlistView->header()->setStretchLastSection(false);
+        ui->playlistView->header()->setResizeMode(0, QHeaderView::Stretch);
+        ui->playlistView->header()->setResizeMode(1, QHeaderView::ResizeToContents);
+    }
     if (!m_showQueue) {
         ui->playlistName->setText(i18n("<b>Playlist</b>"));
         if (m_playlist->playlistModel()->rowCount() > 0) {
@@ -934,6 +984,26 @@ void MainWindow::nowPlayingChanged()
             }
             ui->nowPlaying->setToolTip(toolTipText);
             setWindowTitle(QString(m_nowPlaying->mediaItemAt(0).title + " - Bangarang"));
+        }
+        //Switch the audio output to the appropriate phonon category
+        if (m_nowPlaying->mediaItemAt(0).type == "Audio") {
+            if (m_audioOutput->category() != Phonon::MusicCategory) {
+                m_audioOutput = m_audioOutputMusicCategory;
+                m_audioPath.reconnect(m_media, m_audioOutput);
+                m_audioOutput->setVolume(m_volume);
+                ui->volumeSlider->setAudioOutput(m_audioOutput);
+                ui->volumeIcon->setChecked(false);
+                updateMuteStatus(false);
+            }
+        } else if (m_nowPlaying->mediaItemAt(0).type == "Video") {
+            if (m_audioOutput->category() != Phonon::VideoCategory) {
+                m_audioOutput = m_audioOutputVideoCategory;
+                m_audioPath.reconnect(m_media, m_audioOutput);
+                m_audioOutput->setVolume(m_volume);
+                ui->volumeSlider->setAudioOutput(m_audioOutput);
+                ui->volumeIcon->setChecked(false);
+                updateMuteStatus(false);
+            }
         }
     
         ui->nowPlayingView->header()->setStretchLastSection(false);

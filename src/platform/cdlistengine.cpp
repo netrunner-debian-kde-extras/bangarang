@@ -81,7 +81,7 @@ void CDListEngine::run()
                 mediaItem.url = QString("CDTRACK%1").arg(i);
                 mediaItem.artwork = KIcon("media-optical-audio");
                 mediaItem.title = title;
-                mediaItem.subTitle = i18n("Audio CD - %1 Tracks", trackCount);
+                mediaItem.subTitle = i18nc("%1=Total number of tracks on the CD", "Audio CD - %1 Tracks", trackCount);
                 mediaItem.type = "Audio";
                 mediaItem.fields["url"] = mediaItem.url;
                 mediaItem.fields["title"] = mediaItem.title;
@@ -91,14 +91,14 @@ void CDListEngine::run()
             }
 
             m_mediaListProperties.summary = i18np("1 track", "%1 tracks", mediaList.count());
-            model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+            emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
             m_requestSignature = QString();
             m_subRequestSignature = QString();
             m_loadWhenReady = false;
             delete mediaController;
         }
     } else {
-        model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+        emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
         m_requestSignature = QString();
         m_subRequestSignature = QString();
         m_loadWhenReady = false;

@@ -96,12 +96,10 @@ void SemanticsListEngine::run()
 
                 //Build media list from results
                 while( it.next() ) {
-                    QUrl url = it.binding(mediaVocabulary.mediaResourceUrlBinding())
-                                   .uri().isEmpty() ? it.binding(mediaVocabulary.mediaResourceBinding()).uri() :
-                                   it.binding(mediaVocabulary.mediaResourceUrlBinding()).uri();
-                    MediaItem mediaItem = Utilities::mediaItemFromUrl(url);
+                    Nepomuk::Resource res = Nepomuk::Resource(it.binding(mediaVocabulary.mediaResourceBinding()).uri());
+                    MediaItem mediaItem = Utilities::mediaItemFromNepomuk(res);
                     int playCount = it.binding(mediaVocabulary.playCountBinding()).literal().toInt();
-                    mediaItem.fields["description"] = mediaItem.fields["description"].toString() + QString(" - Played %1 times").arg(playCount);
+                    mediaItem.fields["description"] = i18n("%1 - Played %2 times", mediaItem.fields["description"].toString(), playCount);
                     mediaList.append(mediaItem);
                 }
                 m_mediaListProperties.name = i18n("Frequently Played");
@@ -135,13 +133,10 @@ void SemanticsListEngine::run()
                 
                 //Build media list from results
                 while( it.next() ) {
-                    QUrl url = it.binding(mediaVocabulary.mediaResourceUrlBinding())
-                                    .uri().isEmpty() ? 
-                                    it.binding(mediaVocabulary.mediaResourceBinding()).uri() :
-                                    it.binding(mediaVocabulary.mediaResourceUrlBinding()).uri();
-                    MediaItem mediaItem = Utilities::mediaItemFromUrl(url);
-                    QString lastPlayed = it.binding(mediaVocabulary.lastPlayedBinding()).literal().toDateTime().toString("ddd MMMM d yyyy h:mm:ss ap") ;
-                    mediaItem.fields["description"] = mediaItem.fields["description"].toString() + QString(" - Last Played: %1").arg(lastPlayed);
+                    Nepomuk::Resource res = Nepomuk::Resource(it.binding(mediaVocabulary.mediaResourceBinding()).uri());
+                    MediaItem mediaItem = Utilities::mediaItemFromNepomuk(res);
+                    QString lastPlayed = it.binding(mediaVocabulary.lastPlayedBinding()).literal().toDateTime().toString("ddd MMMM d yyyy h:mm:ss ap"); 
+                    mediaItem.fields["description"] = i18n("%1 - Last Played: %2", mediaItem.fields["description"].toString(), lastPlayed);
                     mediaList.append(mediaItem);
                 }
                 m_mediaListProperties.name = i18n("Recently Played");
@@ -178,11 +173,8 @@ void SemanticsListEngine::run()
                 
                 //Build media list from results
                 while( it.next() ) {
-                    QUrl url = it.binding(mediaVocabulary.mediaResourceUrlBinding())
-                                .uri().isEmpty() ? 
-                                it.binding(mediaVocabulary.mediaResourceBinding()).uri() :
-                                it.binding(mediaVocabulary.mediaResourceUrlBinding()).uri();
-                    MediaItem mediaItem = Utilities::mediaItemFromUrl(url);
+                    Nepomuk::Resource res = Nepomuk::Resource(it.binding(mediaVocabulary.mediaResourceBinding()).uri());
+                    MediaItem mediaItem = Utilities::mediaItemFromNepomuk(res);
                     mediaList.append(mediaItem);
                 }
                 m_mediaListProperties.name = i18n("Highest Rated");
@@ -191,12 +183,12 @@ void SemanticsListEngine::run()
         }
     }
     
-    model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+    emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
     
     //Check if MediaItems in mediaList exist
     QList<MediaItem> mediaItems = Utilities::mediaItemsDontExist(mediaList);
     if (mediaItems.count() > 0) {
-        model()->updateMediaItems(mediaItems);
+        emit updateMediaItems(mediaItems);
     }
     
     m_requestSignature = QString();

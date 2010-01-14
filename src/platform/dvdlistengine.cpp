@@ -77,7 +77,7 @@ void DVDListEngine::run()
                 mediaItem.url = QString("DVDTRACK%1").arg(i);
                 mediaItem.artwork = KIcon("media-optical-dvd");
                 mediaItem.title = title;
-                mediaItem.subTitle = i18n("DVD Video - %1 Titles", trackCount);
+                mediaItem.subTitle = i18nc("%1=Total number of tracks on the DVD", "DVD Video - %1 Titles", trackCount);
                 mediaItem.type = "Video";
                 mediaItem.fields["url"] = mediaItem.url;
                 mediaItem.fields["title"] = mediaItem.title;
@@ -86,14 +86,14 @@ void DVDListEngine::run()
                 mediaList << mediaItem;
             }
 
-            model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+            emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
             m_requestSignature = QString();
             m_subRequestSignature = QString();
             m_loadWhenReady = false;
             delete mediaController;
         }
     } else {
-        model()->addResults(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
+        emit results(m_requestSignature, mediaList, m_mediaListProperties, true, m_subRequestSignature);
         m_requestSignature = QString();
         m_subRequestSignature = QString();
         m_loadWhenReady = false;
