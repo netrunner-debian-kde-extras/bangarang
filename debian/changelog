@@ -1,4 +1,6 @@
-bangarang (1.0~rc-1) unstable; urgency=low
+bangarang (1.0-1) unstable; urgency=low
+
+  * New upstream release
 
   [ Ryan Kavanagh ]
   * Jani no longer has copyrighted files in bangarang (blur.cpp was
