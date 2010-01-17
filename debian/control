@@ -5,6 +5,7 @@ Maintainer: Debian Multimedia Packages Maintainers <pkg-multimedia-maintainers@l
 Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org> , Andreas Marschke <xxtjaxx@gmail.com>
 Build-Depends: debhelper (>= 7),
  pkg-kde-tools (>= 0.5.0),
+ quilt,
  cmake,
  kdemultimedia-dev,
  libtag1-dev
