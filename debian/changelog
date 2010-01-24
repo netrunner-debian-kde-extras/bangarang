@@ -23,10 +23,9 @@ bangarang (1.0-1) unstable; urgency=low
     the maintainer to Debian KDE Extras Team
 
   [ Andreas Marschke ]
-  * Change the Maintainer to the Debian Multimedia Packages Maintainers and
-    add my name and Ryan's to the Uploaders list
+  * Add my name and move Ryan's to the Uploaders list
 
- -- Ryan Kavanagh <ryanakca@kubuntu.org>  Sun, 24 Jan 2010 08:15:12 -0500
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Sun, 24 Jan 2010 15:09:28 -0500
 
 bangarang (1.0~beta2-1) unstable; urgency=low
 
