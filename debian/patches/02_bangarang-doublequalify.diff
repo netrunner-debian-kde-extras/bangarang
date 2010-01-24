@@ -1,0 +1,28 @@
+## 02_KCompactDisc_FTBFS_gcc4.5.diff by Pino Toscano <pino@kde.org>
+## Fixes a FTBFS under gcc-4.5, Debian bug #564965, Upstream issue #60
+Index: bangarang/src/platform/cdlistengine.h
+===================================================================
+--- bangarang.orig/src/platform/cdlistengine.h	2010-01-24 08:10:09.608596408 -0500
++++ bangarang/src/platform/cdlistengine.h	2010-01-24 08:10:55.032594927 -0500
+@@ -47,7 +47,7 @@
+         void run();
+         
+     private:
+-        KCompactDisc::KCompactDisc *m_cdObject;
++        KCompactDisc *m_cdObject;
+         Phonon::MediaObject *m_mediaObject;
+         bool m_loadWhenReady;
+     
+Index: bangarang/src/platform/dvdlistengine.h
+===================================================================
+--- bangarang.orig/src/platform/dvdlistengine.h	2010-01-24 08:10:09.632595560 -0500
++++ bangarang/src/platform/dvdlistengine.h	2010-01-24 08:10:55.032594927 -0500
+@@ -46,7 +46,7 @@
+         void run();
+         
+     private:
+-        KCompactDisc::KCompactDisc *m_cdObject;
++        KCompactDisc *m_cdObject;
+         Phonon::MediaObject *m_mediaObject;
+         bool m_loadWhenReady;
+     
