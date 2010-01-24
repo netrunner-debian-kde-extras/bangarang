@@ -1,7 +1,7 @@
 Source: bangarang
 Section: kde
 Priority: optional
-Maintainer: Debian Multimedia Packages Maintainers <pkg-multimedia-maintainers@lists.alioth.debian.org>
+Maintainer: Debian KDE Extras Team <pkg-kde-extras@lists.alioth.debian.org>
 Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org> , Andreas Marschke <xxtjaxx@gmail.com>
 Build-Depends: debhelper (>= 7),
  pkg-kde-tools (>= 0.5.0),
