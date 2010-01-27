@@ -15,7 +15,7 @@ bangarang (1.0-1) unstable; urgency=low
   * Updated copyright holder's years
   * Added a manpage for the bangarangnepomukwriter executable
   * Changed section to Applications/Video, see bug #559895 for the history.
-    (Closes: #546220)
+    (Closes: #564220)
   * Added a watch file
   * Added the Vcs-* entries to debian/control
   * Added quilt as a B-D
