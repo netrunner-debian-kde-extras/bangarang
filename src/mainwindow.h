@@ -22,11 +22,10 @@
 #include <KIcon>
 #include <KAboutData>
 #include <KHelpMenu>
-#include <Phonon/AudioOutput>
-#include <Phonon/MediaController>
-#include <Phonon/MediaObject>
-#include <Phonon/VideoPlayer>
-#include <Phonon/VideoWidget>
+#include <phonon/audiooutput.h>
+#include <phonon/mediacontroller.h>
+#include <phonon/mediaobject.h>
+#include <phonon/videowidget.h>
 #include <QResizeEvent>
 #include <QEvent>
 #include <QGraphicsView>
@@ -39,7 +38,7 @@
 #include <QDateTime>
 #include <QMainWindow>
 
-class MediaItem;
+struct MediaItem;
 class MediaListProperties;
 class MediaItemModel;
 class MediaListCache;
@@ -103,7 +102,6 @@ public slots:
     void removeSelectedFromPlaylist();
         
 private:
-    Phonon::VideoPlayer *m_player;
     MediaItemDelegate * m_itemDelegate;
     MediaItemDelegate * m_playlistItemDelegate;
     NowPlayingDelegate * m_nowPlayingDelegate;
@@ -189,7 +187,7 @@ private slots:
     void showLoading();
     void showNotification();
     void delayedNotificationHide();
-    void sourceInfoUpdated(MediaItem mediaItem);
+    void sourceInfoUpdated(const MediaItem &mediaItem);
     void sourceInfoRemoved(QString url);
     void updateNowPlayingStyleSheet();
     void volumeChanged(qreal newVolume);
