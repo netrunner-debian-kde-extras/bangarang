@@ -24,7 +24,7 @@
 #include <QDir>
 #include <KUrl>
 #include <libkcompactdisc/kcompactdisc.h>
-#include <Phonon/MediaObject>
+#include <phonon/mediaobject.h>
 
 class MediaItem;
 class MediaListProperties;
@@ -46,7 +46,7 @@ class DVDListEngine : public ListEngine
         void run();
         
     private:
-        KCompactDisc::KCompactDisc *m_cdObject;
+        KCompactDisc *m_cdObject;
         Phonon::MediaObject *m_mediaObject;
         bool m_loadWhenReady;
     

@@ -25,7 +25,7 @@
 #include <KUrl>
 #include <libkcompactdisc/kcompactdisc.h>
 #include <Soprano/Model>
-#include <Phonon/MediaObject>
+#include <phonon/mediaobject.h>
 
 class MediaItem;
 class MediaListProperties;
@@ -47,7 +47,7 @@ class CDListEngine : public ListEngine
         void run();
         
     private:
-        KCompactDisc::KCompactDisc *m_cdObject;
+        KCompactDisc *m_cdObject;
         Phonon::MediaObject *m_mediaObject;
         bool m_loadWhenReady;
     

@@ -48,6 +48,7 @@ Playlist::Playlist(QObject * parent, Phonon::MediaObject * mediaObject) : QObjec
     m_queueDepth = 10;
     m_state = Playlist::Finished;
     m_hadVideo = false;
+    m_notificationRestrictions = 0;
     
     Nepomuk::ResourceManager::instance()->init();
     if (Nepomuk::ResourceManager::instance()->initialized()) {
@@ -70,6 +71,7 @@ Playlist::Playlist(QObject * parent, Phonon::MediaObject * mediaObject) : QObjec
 
 Playlist::~Playlist()
 {
+    delete m_notificationRestrictions;
 }
 
 MediaItemModel * Playlist::playlistModel()
@@ -207,9 +209,11 @@ void Playlist::playNext()
     if (m_mediaObject->state() == Phonon::PlayingState || m_mediaObject->state() == Phonon::PausedState || m_mediaObject->state() == Phonon::LoadingState || m_mediaObject->state() == Phonon::ErrorState) {
         //Add currently playing item to history
         if (m_nowPlaying->rowCount() > 0) {
-            int row = m_nowPlaying->mediaItemAt(0).playlistIndex;
-            m_playlistIndicesHistory.append(row);
-            m_playlistUrlHistory.append(m_nowPlaying->mediaItemAt(0).url);
+            if (m_nowPlaying->mediaItemAt(0).type == "Audio" || m_nowPlaying->mediaItemAt(0).type == "Video") {
+                int row = m_nowPlaying->mediaItemAt(0).playlistIndex;
+                m_playlistIndicesHistory.append(row);
+                m_playlistUrlHistory.append(m_nowPlaying->mediaItemAt(0).url);
+            }
         }
         
         if (m_queue->rowCount() > 1) {
@@ -515,6 +519,9 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
 	 * necessary.
 	 */
     if (!m_mediaObject->hasVideo()) {
+        //Re-enable screensaver
+        delete m_notificationRestrictions;
+        m_notificationRestrictions = 0;
 		return;
 	}
     
@@ -525,6 +532,7 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
         m_hadVideo = m_mediaObject->hasVideo();
     }
     
+    
     QDBusInterface iface(
     		"org.kde.kded",
     		"/modules/powerdevil",
@@ -534,6 +542,10 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
 			&& oldstate != Phonon::PausedState) {
 
 	    iface.call("setProfile", "Presentation");
+        //Disable screensaver
+        delete m_notificationRestrictions; //just to make sure more than one KNotificationRestrictions isn't created.
+        m_notificationRestrictions = new KNotificationRestrictions(KNotificationRestrictions::ScreenSaver);
+    
 	} else if (newstate == Phonon::StoppedState &&
 			(oldstate == Phonon::PlayingState || oldstate == Phonon::PausedState)){
 		/* There is no way to reset the profile to the last used one.

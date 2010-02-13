@@ -21,6 +21,7 @@
 
 #include "nepomuklistengine.h"
 #include <QtCore>
+#include <QString>
 #include <Soprano/QueryResultIterator>
 
 class MediaItem;
