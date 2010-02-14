@@ -1,11 +1,20 @@
 bangarang (1.0.1-1) unstable; urgency=low
 
   * New upstream release 
-  
+
   [ Andreas Marschke ]
   * dropped patches 01_MediaItem.diff 02_bangarang-doublequalify.diff
-  
- -- Ryan Kavanagh <ryanakca@kubuntu.org>  Wed, 27 Jan 2010 16:38:28 -0500
+
+  [ Ryan Kavanagh ]
+  * Fixed typo in bug number in changelog for 1.0-1
+  * Added new copyright holders to debian/copyright and updated years where
+    required
+  * Bumped standards version to 3.8.4
+  * Dropped quilt build-dep
+  * Dropped quilt references in debian/rules
+  * Switched to dpkg-source 3.0 (quilt) format
+
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Sat, 13 Feb 2010 19:12:36 -0500
 
 bangarang (1.0-1) unstable; urgency=low
 
