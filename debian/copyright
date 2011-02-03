@@ -9,27 +9,34 @@ It was downloaded from:
 Upstream Authors:
 
     Andrew Lake <jamboarder@yahoo.com>
-    Ryan Kavanagh <ryanakca@kubuntu.org>
     Andreas Marschke <xxtjaxx@gmail.com>
-    Kristof Bal <kristof.bal@gmail.com>
-    Oskar Hollmann <oskarhollmann@gmail.com>
-    Márcio Moraes <marciopanto@gmail.com>
-    Panagiotis Papadopoulos <pano_90@gmx.net>
-    Ni Hui <shuizhuyuanluo@126.com>
-    Łukasz Jernaś <deejay1@srem.org>
+    Stefan Burnicki <stefan.burnicki@gmx.de>
+    Ni Hui <schuizhuyanluo@126.com>
+    Florian Weik <f.weik@web.de>
+    Philipp Schuler
 
 Copyright:
 
-    Copyright (C) 2009–2010 Andrew Lake <jamboarder@yahoo.com>
-    Copyright (C) 2009–2010 Ryan Kavanagh <ryanakca@kubuntu.org>
-    Copyright (C) 2009 Andreas Marschke (xxtjaxx@gmail.com)
-    Copyright (C) 2009 bangarang-project
-    Copyright (C) 2009–2010 Kristof Bal <kristof.bal@gmail.com>
-    Copyright (C) 2010 Oskar Hollmann <oskarhollmann@gmail.com>
-    Copyright (C) 2010 Márcio Moraes <marciopanto@gmail.com>
-    Copyright (C) 2010 Panagiotis Papadopoulos <pano_90@gmx.net>
-    Copyright (C) 2010 Ni Hui <shuizhuyuanluo@126.com>
-    Copyright (C) 2010 Łukasz Jernaś <deejay1@srem.org>
+    Copyright (C) 2009–2011 Andrew Lake <jamboarder@yahoo.com>
+    Copyright (C) 2009–2011 Ryan Kavanagh <ryanakca@kubuntu.org>
+    Copyright (C) 2009–2011 bangarang-project
+    Copyright (C) 2009–2011 Kristof Bal <kristof.bal@gmail.com>
+    Copyright (C) 2010–2011 Stefan Burnicki <stefan.burnicki@gmx.de>
+    Copyright (C) 2010–2011 Yuri Chornoivan <yurchor@ukr.net>
+    Copyright (C) 2011      Ernesto Manríquez Mendoza <alejandronova@gmail.com>
+    Copyright (C) 2011      Vytautas Mickus vmickus@gmail.com>
+    Copyright (C) 2010      Florian Weik <f.weik@web.de>
+    Copyright (C) 2010      Jean Pierre Mazuelos Saavedra  <apuyaya@gmail.com>
+    Copyright (C) 2010      Jérôme Artu <solojay6@gmail.com>
+    Copyright (C) 2010      Martin Schlander <mschlander@opensuse.org>
+    Copyright (C) 2010      Moritz N. <ferahgo.de@gmail.com>
+    Copyright (C) 2010      Márcio Moraes <marciopanto@gmail.com>
+    Copyright (C) 2010      Ni Hui <shuizhuyuanluo@126.com>
+    Copyright (C) 2010      Oskar Hollmann <oskarhollmann@gmail.com>
+    Copyright (C) 2010      Panagiotis Papadopoulos <pano_90@gmx.net>
+    Copyright (C) 2010      Łukasz Jernaś <deejay1@srem.org>
+    Copyright (C) 2009      Andreas Marschke <xxtjaxx@gmail.com>
+    Copyright (C) 2009      Philipp Schuler
 
 License:
 
@@ -46,12 +53,30 @@ License:
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+The following files have different licenses:
+
+ * reference/imdbqueryengine.cpp, reference/imdbqueryengine.h
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 On Debian systems, the complete text of the GNU General
 Public License version 3 can be found in `/usr/share/common-licenses/GPL-3'.
 
 The Debian packaging is:
 
-    Copyright (C) 2009-2010 Ryan Kavanagh <ryanakca@kubuntu.org>
+    Copyright (C) 2009, 2011 Ryan Kavanagh <ryanakca@kubuntu.org>
 
 and is licensed under the GPL version 3, or (at your option) any later version,
 see above.
