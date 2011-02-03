@@ -26,6 +26,7 @@
 
 class MainWindow;
 class MediaIndexer;
+class BangarangApplication;
 
 /*
  * This ItemDelegate is responsible for painting the currently
@@ -44,13 +45,32 @@ class NowPlayingDelegate : public QItemDelegate
         QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const;
         int columnWidth (int column, int viewWidth) const;
         bool editorEvent(QEvent *event, QAbstractItemModel *model, const QStyleOptionViewItem &option, const QModelIndex &index);
-                    
+        QAbstractItemView *view() { return m_view; }
+        void setView(QAbstractItemView *view) { m_view = view; }
+        void updateSizeHint();
+        void setShowInfo(bool showInfo);
+        bool showingInfo();
+
+    protected:
+        QRect ratingRect(const QRect *rect) const;
+
     private:
-        MainWindow * m_parent;  
-        QPixmap m_ratingCount;
-        QPixmap m_ratingNotCount;
+        BangarangApplication * m_application;
+        MainWindow * m_parent;
+        int m_iconSize;
+        int m_padding;
+        int m_textInner;
+        int m_starRatingSize;
         bool m_nepomukInited;
+        QRect m_globalRatingRect;
+        QAbstractItemView *m_view;
         MediaIndexer * m_mediaIndexer;
+        bool m_showInfo;
+
+        void paintInfo(QPainter *painter, const QStyleOptionViewItem &option,
+                       const QModelIndex &index) const;
+        QRect infoRect(const QStyleOptionViewItem &option,
+                       const QModelIndex &index) const;
         
 };
 

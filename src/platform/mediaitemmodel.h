@@ -21,14 +21,16 @@
 
 /** @file
   * This file contains the definition of the MediaItem, MediaListProperties 
-  * and MediaItemModel.
+  * and MediaItemModel and MediaSortFilterProxyModel.
   *
   * @author Andrew Lake
   */
 
 #include <QStandardItemModel>
+#include <QSortFilterProxyModel>
 #include <QObject>
 #include <QPixmap>
+#include <QImage>
 #include <QList>
 
 class MusicListEngine;
@@ -47,32 +49,43 @@ class MediaListCache;
  * QList< MediaItem >.
  */
 
-struct MediaItem {
-    
+class MediaItem {
+public:
     enum MediaItemRole { UrlRole = Qt::UserRole + 1, /** QStandardItem role containing MediaItem url.*/
     
     SubTitleRole = Qt::UserRole + 2, /** QStandardItem role containing MediaItem sub title.*/
     
-    DurationRole = Qt::UserRole + 3, /** QStandardItem role containing MediaItem duration.*/
+    SemanticCommentRole = Qt::UserRole + 3, /** QStandardItem role containing MediaItem sub title.*/
+
+    DurationRole = Qt::UserRole + 4, /** QStandardItem role containing MediaItem duration.*/
     
-    RatingRole = Qt::UserRole + 4, /** QStandardItem role containing MediaItem rating.*/
+    RatingRole = Qt::UserRole + 5, /** QStandardItem role containing MediaItem rating.*/
     
-    TypeRole = Qt::UserRole + 5, /** QStandardItem role containing MediaItem type.*/
+    PlayCountRole = Qt::UserRole + 6, /** QStandardItem role containing MediaItem play count.*/
     
-    FilterRole = Qt::UserRole + 6, /** QStandardItem role containing MediaItem filter.*/
+    LastPlayedRole = Qt::UserRole + 7, /** QStandardItem role containing MediaItem last played time.*/
     
-    PlaylistIndexRole = Qt::UserRole + 7,  /** QStandardItem role containing Playlist 
+    TypeRole = Qt::UserRole + 8, /** QStandardItem role containing MediaItem type.*/
+    
+    SubTypeRole = Qt::UserRole + 9, /** QStandardItem role containing MediaItem type.*/
+    
+    FilterRole = Qt::UserRole + 10, /** QStandardItem role containing MediaItem filter.*/
+    
+    PlaylistIndexRole = Qt::UserRole + 11,  /** QStandardItem role containing Playlist 
                                              *index of MediaItem.*/
                                              
-    NowPlayingRole = Qt::UserRole + 8, 
+    NowPlayingRole = Qt::UserRole + 12, 
     
-    IsSavedListRole = Qt::UserRole + 9, /** QStandardItem role containing whether
+    IsSavedListRole = Qt::UserRole + 13, /** QStandardItem role containing whether
                                          *or not the media list represented by the 
                                          *MediaItem is a saved list.*/
     
-    ExistsRole = Qt::UserRole + 10 }; /** QStandardItem role containing whether or
+    ExistsRole = Qt::UserRole + 14,  /** QStandardItem role containing whether or
                                         *the file the MediaItem.url refers to exists.*/
-                                        
+    
+    HasCustomArtworkRole = Qt::UserRole + 15}; /** QStandardItem role containing whether
+                                                 * not artwork is custom(true) or default(false).*/
+
     QString url; /** Url of MediaItem. The may be a standard url representing a 
                    * location of a media resource or a List Resource Identifier (lri).*/
                    
@@ -81,6 +94,8 @@ struct MediaItem {
     QString title; /** Title of the Media Item. */
     
     QString subTitle; /** Subtitle of the Media Item. */
+    
+    QString semanticComment; /** Comment containing info like play count, lastplayed, etc. */
     
     QString duration;  /** Displayed representation of duration of the Media Item. */
     
@@ -110,14 +125,45 @@ struct MediaItem {
                       
     bool exists; /** If the MediaItem.url point to a playable media resource, this
                    * bool is true if the playable media resource exists, otherwise is false.
-                   * Note that this is only useful for file resources.*/
+                   * On DVDs or CDs this value depends on whether the DVD/CD is inserted or not.*/
+    
+    bool hasCustomArtwork; /** If the artwork property is a default icon this bool is false,
+                            * otherwise if artwork property has custom artwork this bool is
+                            * true. */
                    
     QHash <QString, QVariant> fields;  /** Collection of all key, value pairs containing
                                          * the metadata fields associated with this MediaItem.
                                          *  key - A string containing the field name.
                                          *  value - A variant conatining the value of the field.*/
+                                         
+    void addContext(const QString title, const QString lri)
+    {
+        QStringList contextTitles = fields["contextTitles"].toStringList();
+        QStringList contextLRIs = fields["contextLRIs"].toStringList();
+        contextTitles.append(title);
+        contextLRIs.append(lri);
+        fields["contextTitles"] = contextTitles;
+        fields["contextLRIs"] = contextLRIs;
+    }
+
+    void clearContexts()
+    {
+        fields["contextTitles"] = QStringList();
+        fields["contextLRIs"] = QStringList();
+    }
+
+    const QString subType() const
+    {
+        if (type == "Audio") {
+            return fields["audioType"].toString();
+        } else if (type == "Video"){
+            return fields["videoType"].toString();
+        } else {
+            return fields["categoryType"].toString();
+        }
+    }
     
-    MediaItem() : nowPlaying(false), isSavedList(false), exists(true) {}
+    MediaItem() : nowPlaying(false), isSavedList(false), exists(true), hasCustomArtwork(false) {}
 };
 
 Q_DECLARE_METATYPE(MediaItem);
@@ -131,19 +177,30 @@ Q_DECLARE_METATYPE(MediaItem);
 class MediaListProperties {
 
 public:
+    MediaListProperties(QString startingLri = QString()) 
+    {
+        lri = startingLri;
+        filterOperators << "!=" << ">=" << "<=" << "=" << ">" << "<" << ".contains.";
+    }
+    
+    ~MediaListProperties(){}
+    
     QString name; /** Name of media list */
     
     QString summary; /** Summary text describing the number of items in the media list */
     
     QString lri;  /** List Resource Identifier associated with media list.  This string
                     * is the essentially how the media list is retrieved. */
+    MediaItem category;  /** Category mediaItem associated with the media list. This is
+                           * the category mediaItem that was categoryActivated. */
                     
     /** 
      * Returns the engine portion of the lri string.
      */
     QString engine() {
-        if (lri.indexOf("://") != -1) {
-            return lri.left(lri.indexOf("://") + 3);
+        int idxOfSlashes = lri.indexOf("://");
+        if (idxOfSlashes != -1) {
+            return lri.left(idxOfSlashes + 3);
         } else {
             return QString();
         }
@@ -154,9 +211,10 @@ public:
      */
     QString engineArg() {
         int endOfArg = (lri.indexOf("?") != -1) ? lri.indexOf("?") - 1: lri.size() - 1;
-        if ((lri.indexOf("://") != -1) && (lri.indexOf("://") != lri.size() - 3)) {
+        int idxOfSlashes = lri.indexOf("://");
+        if ((idxOfSlashes != -1) && (idxOfSlashes != lri.size() - 3)) {
             //return lri.mid(lri.indexOf("://") + 3, lri.size() - endOfArg + 1);
-            return lri.mid(lri.indexOf("://") + 3, endOfArg - (lri.indexOf("://") + 2));
+            return lri.mid(idxOfSlashes + 3, endOfArg - (lri.indexOf("://") + 2));
         } else {
             return QString();
         }
@@ -166,12 +224,110 @@ public:
      * Returns the engine filter portion of the lri string. 
      */
     QString engineFilter() {
-        if ((lri.indexOf("://") != -1)  && (lri.indexOf("?") != -1) && (lri.indexOf("?") != lri.size() - 1)){
-            return lri.right(lri.size() - (lri.indexOf("?") + 1));
+        int idxOfArgSep = lri.indexOf("?");
+        if ((lri.indexOf("://") != -1)  && (idxOfArgSep != -1) && (idxOfArgSep != lri.size() - 1)){
+            return lri.right(lri.size() - (idxOfArgSep + 1));
         } else {
             return QString();
         }
     }
+    
+    /**
+     * Returns a parsed list of filters from the enginefilter portion
+     * of the lri string
+     **/
+    QStringList engineFilterList() {
+        QStringList lriFilterList;
+        QString filter = engineFilter();
+        if (!filter.isNull()) {
+            QStringList argList = filter.split("||");
+            for (int i = 0; i < argList.count(); i++) {
+                lriFilterList << argList.at(i);
+            }
+        }
+        return lriFilterList;
+    }
+    
+    /**
+     * Returns field name of specified filter
+     **/
+    QString filterField(const QString &filter)
+    {
+        QString field;
+        for (int j = 0; j < filterOperators.count(); j ++) {
+            QString oper = filterOperators.at(j);
+            if (filter.indexOf(oper) != -1) {
+                field = filter.left(filter.indexOf(oper)).trimmed();
+                break;
+            }
+        }
+        return field;
+    }
+    
+    /**
+     * Returns operator of specified filter
+     **/
+    QString filterOperator(const QString &filter)
+    {
+        QString oper;
+        for (int j = 0; j < filterOperators.count(); j ++) {
+            oper = filterOperators.at(j);
+            if (filter.indexOf(oper) != -1) {
+                break;
+            }
+        }
+        return oper;
+    }
+    
+    /**
+    * Returns value of specified filter
+    **/
+    QString filterValue(const QString &filter)
+    {
+        QString value;
+        for (int j = 0; j < filterOperators.count(); j ++) {
+            QString oper = filterOperators.at(j);
+            if (filter.indexOf(oper) != -1) {
+                value = filter.mid(filter.indexOf(oper) + oper.length()).trimmed();
+                break;
+            }
+        }
+        return value;
+    }
+    
+    /**
+     * Returns first value of specified field in filter
+     */
+    QString filterFieldValue(const QString &field)
+    {
+        QString value;
+        QStringList filterList = engineFilterList();
+        for (int i = 0; i < filterList.count(); i++) {
+            if (filterField(filterList.at(i)) == field) {
+                value = filterValue(filterList.at(i));
+                break;
+            }
+        }
+        return value;
+    }
+    
+    /**
+     * Returns first filter corresponding to specified field
+     */
+    QString filterForField(const QString &field)
+    {
+        QString filter;
+        QStringList filterList = engineFilterList();
+        for (int i = 0; i < filterList.count(); i++) {
+            if (filterField(filterList.at(i)) == field) {
+                filter = filterList.at(i);
+                break;
+            }
+        }
+        return filter;
+    }
+    
+    QStringList filterOperators;
     
     QString type; /** The type of media list.
                    * "Categories" - a list of MediaItems that are categories.
@@ -239,12 +395,38 @@ class MediaItemModel : public QStandardItemModel
         Qt::ItemFlags flags(const QModelIndex &index) const;
         
         /**
+         * Insert MediaItem at the specified row in the model with the one
+         * provided.
+         *
+         * @param row row of model
+         * @param mediaItem MediaItem to replace with
+         * @param emitMediaListChanged emits mediaListChanged() signal if true,
+         *                             otherwise don't emit mediaListChanged().
+         *
+         */
+        void insertMediaItemAt(int row, const MediaItem &mediaItem, bool emitMediaListChanged = false);
+
+        /**
          * Loads list of MediaItems as specified by the MediaListProperties.lri
          *
          * Note: Loading is asynchronous. Use mediaListChanged() signal to detect
          *       when loading is complete.
          */
         void load();
+
+        /**
+         * Returns loading state.
+         *
+         */
+        bool isLoading();
+        
+        /**
+        * Loads list of MediaItems as specified by the provided lri
+        *
+        * Note: Loading is asynchronous. Use mediaListChanged() signal to detect
+        *       when loading is complete. This method will clear existing data.
+        */
+        void loadLRI(const QString &lri);
         
         /**
          * Loads a list of MediaItems directly into the model
@@ -369,6 +551,15 @@ class MediaItemModel : public QStandardItemModel
         int rowOfUrl(const QString &url);
         
         /**
+        * Return the row of a MediaItem whose resource uri matches the one provided
+        *
+        * @param resourceUri uri to match
+        *
+        * @return row of model
+        */
+        int rowOfResourceUri(const QString &resourceUri);
+        
+        /**
          * Sets the threshold for the cache.
          * 
          * @param msec cache threshold in milliseconds.
@@ -406,6 +597,18 @@ class MediaItemModel : public QStandardItemModel
         void setListEngineFactory(ListEngineFactory * listEngineFactory);
         
         /**
+         * Sets suppression of no results message
+         * @param suppress true to suppress message, false otherwise
+         */
+        void setSuppressNoResultsMessage(bool suppress);
+
+        /**
+         * Returns model status information.  This contains for underlying model
+         * status info like indexing status.
+         */
+        QHash<QString, QVariant> status();
+        
+        /**
          * Returns the DropActions supported by the model
          */
         Qt::DropActions supportedDropActions() const;
@@ -416,6 +619,7 @@ class MediaItemModel : public QStandardItemModel
         *
         * @param mediaList list containing the MediaItems whose information
         *                  should be update in the source.
+        * @param nepomukOnly only update the nepomuk store.
         *
         * Note: mediaList does not have to contain the same MediaItems contained
         *       in the model.  However, the current model MediaListProperties
@@ -424,7 +628,7 @@ class MediaItemModel : public QStandardItemModel
         *       can be used to retrieve the MediaItem, its ListEngine can
         *       update information for the MediaItem.
         */
-        void updateSourceInfo(const QList<MediaItem> &mediaList);
+        void updateSourceInfo(const QList<MediaItem> &mediaList, bool nepomukOnly = false);
         
         QString dataEngine();
         QString filter();
@@ -445,47 +649,22 @@ class MediaItemModel : public QStandardItemModel
          * Emitted when the model is loading a list of MediaItems.
          */
         void loading();
-        
+
         /**
-         * Emmited when the source information for a MediaItem is updated.
-         *
-         * @param mediaItem MediaItem whose information was updated in
-         *                  the source.
+         * Emitted when the loading state changes
          */
-        void sourceInfoUpdated(MediaItem mediaItem); 
+        void loadingStateChanged(bool loadingState);
         
         /**
-         * Emitted when the source information for a MediaItem is updated
-         *
-         * @param percent percentage of MediaItems updated (from the 
-         *                list of MediaItems being updated).
+         * Emitted when status is updated
          */
-        void sourceInfoUpdateProgress(int percent);
+        void statusUpdated();
         
         /**
-         * Emmited when the source information for MediaItem is removed.
-         *
-         * @param url url of MediaItem remove from the source
+         * Emitted when MediaListProperties for this model has changed.
+         * Emitted only when changed independent of media list load.
          */
-        void sourceInfoRemoved(QString url);
-        
-        /**
-        * Emitted when the source information for a MediaItem is removed
-        *
-        * @param percent percentage of MediaItems removed (of the 
-        *                list of MediaItems being removed).
-        */
-        void sourceInfoRemovalProgress(int percent);
-        
-        /**
-         * Emitted when the update or removal of the list MediaItems is complete.
-         */
-        void sourceInfoUpdateRemovalComplete();
-        
-        /**
-        * Emitted when the update or removal of the list MediaItems has started.
-        */
-        void sourceInfoUpdateRemovalStarted();
+        void mediaListPropertiesChanged();
         
     public Q_SLOTS:
         /**
@@ -542,6 +721,11 @@ class MediaItemModel : public QStandardItemModel
         void updateMediaItems(QList<MediaItem> mediaList);
         
         /**
+        * Checks if the model contains playble items (media items or feeds)
+        */
+        bool containsPlayable();
+        
+        /**
          * Remove MediaItem in model that matches the url specified.
          *
          * @param url url of MediaItem to remove.
@@ -553,7 +737,47 @@ class MediaItemModel : public QStandardItemModel
          */
         void removeMediaItem(QString url);
         
+        /**
+        * Remove MediaItem in model that matches the resource uri specified.
+        *
+        * @param resourceUri uri of MediaItem to remove.
+        *
+        * Note: This method only removes the information in the model. It
+        *       does not remove information in the source from which the 
+        *       MediaItems were retrieved. Use removeSourceInfo() method 
+        *       to do that.
+        */
+        void removeMediaItemByResource(QString resourceUri);
+        
+        /**
+        * Update artwork for mediaItem corresponding to the specified MediaItem.
+        * Only MediaItems in the model whose url matches the url of the
+        * specifed MediaItem will be updated.
+        * 
+        * @param artworkImage Image of updated artwork.
+        * @param mediaItem MediaItem to update the artwork for.
+        *
+        * Note: This method only updates the information in the model. It
+        *       does not update the source from which the MediaItems were
+        *       retrieved. Use updateSourceInfo() method to do that.
+        */
+        void updateArtwork(QImage artworkImage, MediaItem mediaItem);
+        
+        void updateRefresh();
+        
+        void updateMediaListPropertiesCategoryArtwork(QImage artworkImage, MediaItem mediaItem);
+        
         void addResults(QString requestSignature, QList<MediaItem> mediaList, MediaListProperties mediaListProperties, bool done, QString subRequestSignature);
+
+        /**
+         * Update model status
+         */
+        void updateStatus(QHash<QString, QVariant> updatedStatus);
+
+        /**
+         * Suppress tooltips
+         */
+        void setSuppressTooltip(bool suppress = true);
         
     private Q_SLOTS:
         void synchRemoveRows(const QModelIndex &index, int start, int end);
@@ -563,6 +787,7 @@ class MediaItemModel : public QStandardItemModel
         void hideLoadingMessage();
         void showNoResultsMessage();
         QList<QStandardItem *> rowDataFromMediaItem(MediaItem mediaItem);
+        void loadSourcesForNextCat();
         QObject * m_parent;
         QString m_dataEngine;
         QString m_filter;
@@ -573,6 +798,7 @@ class MediaItemModel : public QStandardItemModel
         QList< QList<MediaItem> > m_subRequestMediaLists;
         int m_subRequestsDone;
         QStringList m_urlList;
+        QStringList m_resourceUriList;
         QList<MediaItem> m_mediaList;
         bool m_emitChangedAfterDrop;
         int m_loadingProgress;
@@ -582,12 +808,24 @@ class MediaItemModel : public QStandardItemModel
         MediaListCache * m_mediaListCache;
         bool m_forceRefreshFromSource;
         QHash<QString, QTime> m_lriStartTimes;
-        QList<QString> m_lrisLoading; 
         bool m_loadSources;
         QList<MediaItem> m_mediaListForLoadSources;
+        QList<MediaItem> m_remainingCatsForLoadSources;
         bool m_reload;
         bool m_lriIsLoadable;
+        bool m_suppressNoResultsMessage;
+        bool m_pendingUpdateRefresh;
+        bool m_suppressTooltip;
+        QHash<QString, QVariant> m_status;
 
+};
+
+class MediaSortFilterProxyModel : public QSortFilterProxyModel
+{
+    public:
+        MediaSortFilterProxyModel(QObject* parent = 0);
+
+        bool filterAcceptsRow(int sourceRow, const QModelIndex &sourceParent) const;
 };
 
 #endif // MEDIAITEMMODEL_H

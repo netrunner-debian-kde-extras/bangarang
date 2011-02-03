@@ -19,26 +19,23 @@
 #ifndef INFOMANAGER_H
 #define INFOMANAGER_H
 
-#include <KLineEdit>
-#include <QDateEdit>
-#include <KUrlRequester>
-#include <QComboBox>
-#include <QSpinBox>
-#include <QObject>
-#include <QTreeWidgetItem>
-#include <QTextEdit>
-#include <QDate>
+#include "platform/mediaitemmodel.h"
+#include <QtCore>
+#include <QStandardItemModel>
+#include <QItemDelegate>
+#include <QAbstractItemView>
+
 
 namespace Ui
 {
     class MainWindowClass;
 }
 class MainWindow;
-class MediaItemModel;
-class MediaItem;
+class InfoItemModel;
+class InfoItemDelegate;
 class MediaItemDelegate;
-class MediaIndexer;
-class ArtworkWidget;
+class BangarangApplication;
+class InfoFetcher;
 
 /*
  * This class provides a user interface for updating information associated with MediaItems
@@ -48,59 +45,59 @@ class InfoManager : public QObject
     Q_OBJECT
     
     public:
-        enum Format { NormalFormat = 0,
-        TitleFormat = 1};
         InfoManager(MainWindow * parent);
         ~InfoManager();
-        
-        MediaItemModel *m_infoMediaItemsModel;
-        MediaItemDelegate *m_infoItemDelegate;
+        const QList<MediaItem> selectedInfoBoxMediaItems();
+        bool infoViewVisible();
         
     public slots:
-        void saveInfoView();
+        void toggleInfoView();
         void showInfoView();
+        void hideInfoView();
+        void mediaSelectionChanged (const QItemSelection & selected, const QItemSelection & deselected);
+        void saveItemInfo();
+        void loadSelectedInfo();
         void showInfoViewForMediaItem(const MediaItem &mediaItem);
-        void editInfoView();
+        void setContext(const MediaItem &category);
+        void clearInfoBoxSelection();
+        void mediaListPropertiesChanged();
         void removeSelectedItemsInfo();
+        void addSelectedItemsInfo();
+        void selectInfoFetcher(QAction * infoFetcherAction);
         
     private:
+        void showIndexer();
+        BangarangApplication * m_application;
         MainWindow *m_parent; 
         Ui::MainWindowClass *ui;
-        MediaIndexer *m_mediaIndexer;
-        bool m_editToggle;
-        void loadInfoView();
-        QVariant commonValue(const QString &field);
-        QStringList valueList(const QString &field);
-        void saveInfoToMediaModel();
-        QList<int> m_rows;
-        void showFields(bool edit = false);
-        void showCommonFields(bool edit = false);
-        void showAudioType(int index, bool edit = false);
-        void showAudioFields();
-        void showAudioMusicFields(bool edit = false);
-        void showAudioStreamFields(bool edit = false);
-        void showVideoType(int index, bool edit = false);
-        void showVideoFields();
-        void showVideoMovieFields(bool edit = false);
-        void showVideoTVShowFields(bool edit = false);
-        bool multipleVideoTypes();
-        bool multipleAudioTypes();
-        void setLabel(int row, const QString &label, int format = NormalFormat);
-        void setInfo(int row, const QString &info, int format = NormalFormat);
-        void setInfo(int row, const QPixmap &pixmap);
-        void setEditWidget(int row, KLineEdit *lineEdit, const QString &value = QString());
-        void setEditWidget(int row, QTextEdit *textEdit, const QString &value = QString());
-        void setEditWidget(int row, QComboBox *comboBox, const QString &value = QString(), const QStringList &list = QStringList(), bool editable = false);
-        void setEditWidget(int row, KUrlRequester *urlRequester, const QString &value = QString());
-        void setEditWidget(int row, QSpinBox *spinBox, int value = 0);
-        void setEditWidget(int row, ArtworkWidget *artworkWidget, const QPixmap &pixmap);
-        void setEditWidget(int row, QDateEdit *dateEdit, const QDate &date = QDate());
-        
+        bool m_nepomukInited;
+        InfoItemModel *m_infoItemModel;
+        InfoItemDelegate *m_infoItemDelegate;
+        QList<MediaItem> m_context;
+        MediaItemModel *m_recentlyPlayedModel;
+        MediaItemModel *m_highestRatedModel;
+        MediaItemModel *m_frequentlyPlayedModel;
+        MediaItem m_contextCategory;
+        QList<MediaItem> m_selectedInfoBoxMediaItems;
+        QTimer *m_selectionTimer;
+        bool m_infoViewVisible;
+        InfoFetcher *m_currentInfoFetcher;
         
     private slots:
-        void mediaViewHolderChanged(int index);
-        void audioTypeChanged(int index);
-        void videoTypeChanged(int index);
-        void saveFileMetaData();
+        void cancelItemEdit();
+        void infoBoxSelectionChanged (const QItemSelection & selected, const QItemSelection & deselected);
+        void infoChanged(bool modified);
+        void fetchInfo();
+        void autoFetchInfo();
+        void showFetching();
+        void fetchComplete();
+        void showInfoFetcher();
+        void toggleShowInfoFetcherExpander();
+        void selectInfoFetcher(int index);
+        void fetchingStatusUpdated();
+        void openInfoFetcherLink();
+        
+    Q_SIGNALS:
+        void infoBoxSelectionChanged(QList<MediaItem> selectedItems);
 };
 #endif //INFOMANAGER_H

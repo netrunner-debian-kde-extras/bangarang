@@ -30,6 +30,7 @@
 #include <QListWidgetItem>
 #include <QTimer>
 #include <QHBoxLayout>
+#include <QComboBox>
 
 class SToolButton : public QToolButton
 {
@@ -82,11 +83,13 @@ Q_SIGNALS:
     void entered();
     void exited();
     void mouseMoved();
+    void resized();
     
 protected:
     void enterEvent(QEvent *event);
     void leaveEvent(QEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
+    void resizeEvent(QResizeEvent *);
     
 protected Q_SLOTS:
     void hoverTimeout();
@@ -134,31 +137,28 @@ protected Q_SLOTS:
     void selectorExited();
 };
 
-class ArtworkWidget : public QWidget
+class SComboBox : public QComboBox
 {
     Q_OBJECT
     public:
-        ArtworkWidget(QWidget * parent = 0);
-        ~ArtworkWidget();
+        SComboBox(QWidget * parent = 0) : QComboBox(parent) {}
+        ~SComboBox(){}
         
-        KUrl url();
-        const QPixmap * artwork();
-        void setPixmap(QPixmap pixmap);
-        void setUrl(KUrl url);
-        
-    private:
-        QWidget * m_parent;
-        QLabel * m_artworkLabel;
-        QToolButton * m_openUrl;
-        QHBoxLayout * m_layout;
-        KUrl m_url;
-        
-    protected Q_SLOTS:
-        void openUrl();
+        //I have no idea why there is no default USER property in QComboBox
+        Q_PROPERTY(QString currentText READ currentText USER true);
+};
+
+class SRatingCombo : public QComboBox
+{
+    Q_OBJECT
+    public:
+        SRatingCombo(QWidget * parent = 0);
+        ~SRatingCombo(){}
+
+        void paintEvent ( QPaintEvent * e );
 };
 #endif // SENSIBLEWIDGETS_H
 
 
 
 
- 

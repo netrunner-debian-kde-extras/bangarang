@@ -22,7 +22,7 @@
 #include <QtCore>
 #include <KProcess>
 
-class MediaItem;
+#include "mediaitemmodel.h"
 
 /**
 * MediaIndexer provides a way to asynchronous write to the nepomuk datastore.
@@ -36,7 +36,7 @@ class MediaIndexer : public QObject
         /**
          * Constructor
          */
-        MediaIndexer(QObject *parent);
+        MediaIndexer(QObject *parent = 0);
         
         /**
          *Destructor
@@ -84,7 +84,7 @@ class MediaIndexer : public QObject
          * @param incrementPlayCount if true, the play count will be incremented
          * @param playDateTime DateTime of playback
          */
-        void updatePlaybackInfo(const QString &url, bool incrementPlayCount, const QDateTime &playDateTime);
+        void updatePlaybackInfo(const QString &resourceUri, bool incrementPlayCount, const QDateTime &playDateTime);
         
         /**
          * Update the rating of the specified url.
@@ -92,9 +92,9 @@ class MediaIndexer : public QObject
          * @param url Url of MediaItem
          * @param rating Rating: and integer between 0 and 10
          */
-        void updateRating(const QString &url, int rating);
+        void updateRating(const QString &resourceUri, int rating);
         
-        void state();
+        State state();
         
     Q_SIGNALS:
         /**
@@ -126,18 +126,23 @@ class MediaIndexer : public QObject
         /**
          * Emitted when media information has been updated/removed.
          */
-        void percentComplete(int percent);
-    
+        void updateStatus(QHash<QString, QVariant> updatedStatus);
+
+        void startWriter(const QStringList &args);
+
     private:
         bool m_nepomukInited;
-        QList<KProcess *> m_writers;
-        QHash<int, QList<MediaItem> > m_mediaLists;
-        QHash<int, QList<QString> > m_urlLists;
+        KProcess * m_writer;
+        QList<MediaItem> m_mediaList;
+        QStringList m_urlList;
         State m_state;
+        int m_percent;
+        QHash<QString, QVariant> m_status;
         void writeRemoveInfo(MediaItem mediaItem, QTextStream &out);
         void writeUpdateInfo(MediaItem mediaItem, QTextStream &out);
         
     private Q_SLOTS:
+        void startWriterSlot(const QStringList &args);
         void processWriterOutput();
         void finished(int exitCode, QProcess::ExitStatus exitStatus);
         void error(QProcess::ProcessError error);

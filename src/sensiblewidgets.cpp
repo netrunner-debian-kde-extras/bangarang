@@ -17,9 +17,12 @@
 */
 
 #include "sensiblewidgets.h"
+#include "ratingdelegate.h"
+#include "starrating.h"
 
 #include <KIcon>
 #include <KFileDialog>
+#include <QStylePainter>
 
 SToolButton::SToolButton(QWidget * parent):QToolButton (parent) 
 {
@@ -125,6 +128,10 @@ void SFrame::mouseMoveEvent(QMouseEvent *event)
     emit mouseMoved();
     Q_UNUSED(event);
 }
+void SFrame::resizeEvent(QResizeEvent *)
+{
+    emit resized();
+}
 void SFrame::hoverTimeout()
 {
     if (m_hovered) {
@@ -195,58 +202,42 @@ void SListWidget::selectorExited()
     this->setSelectionMode(QAbstractItemView::ExtendedSelection);
 }
 
-ArtworkWidget::ArtworkWidget(QWidget * parent):QWidget (parent) 
+SRatingCombo::SRatingCombo(QWidget * parent) : QComboBox(parent)
 {
-    m_parent = parent;
-    m_openUrl = new QToolButton();
-    m_openUrl->setIcon(KIcon("document-open"));
-    m_artworkLabel = new QLabel();
-    m_artworkLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-    m_artworkLabel->setMargin(8);
-    m_artworkLabel->setMinimumHeight(136);
-    m_layout = new QHBoxLayout;
-    m_layout->addWidget(m_artworkLabel);
-    m_layout->addWidget(m_openUrl);
-    this->setLayout(m_layout);
-    
-    connect(m_openUrl, SIGNAL(clicked()), this, SLOT(openUrl()));
+    this->setItemDelegate(new RatingDelegate(this));
 }
 
-ArtworkWidget::~ArtworkWidget() 
+void SRatingCombo::paintEvent (QPaintEvent * e)
 {
-    delete m_openUrl;
-    delete m_artworkLabel;
-    delete m_layout;
-}
+    QVariant ratingData = this->itemData(this->currentIndex(),Qt::UserRole).toInt();
+    if (ratingData.isValid()) {
+        QStylePainter p(this);
+        QStyleOptionComboBox option;
+        option.initFrom(this);
 
-KUrl ArtworkWidget::url()
-{
-    return m_url;
-}
+        p.drawComplexControl(QStyle::CC_ComboBox, option);
 
-const QPixmap * ArtworkWidget::artwork()
-{
-    return m_artworkLabel->pixmap();
-}
+        QRect subRect = p.style()->subElementRect(QStyle::SE_ComboBoxFocusRect, &option);
+        const int left = subRect.left();
+        const int top = subRect.top();
+        const int height = subRect.height();
 
-void ArtworkWidget::openUrl()
-{
-    KUrl url = KFileDialog::getImageOpenUrl(KUrl(), m_parent, tr("Open artwork file"));
-    if (!url.isEmpty()) {
-        setUrl(url);
+        int rating = ratingData.toInt();
+        StarRating starRating = StarRating(rating, StarRating::Medium);
+        starRating.setRating(rating);
+        QSize ratingSize = starRating.sizeHint();
+        int ratingLeft = left + 2;
+        int ratingTop = top + (height - ratingSize.height())/2;
+        QRect ratingRect = QRect(QPoint(ratingLeft, ratingTop), ratingSize);
+        starRating.setPoint(ratingRect.topLeft());
+        if (!this->isEnabled()) {
+            starRating.setHoverAtPosition(ratingRect.topLeft());
+        }
+        starRating.paint(&p);
+    } else {
+        QComboBox::paintEvent(e);
     }
-}
 
-void ArtworkWidget::setPixmap(QPixmap pixmap)
-{
-    m_artworkLabel->setPixmap(pixmap);
-}
-
-void ArtworkWidget::setUrl(KUrl url)
-{
-    QPixmap pixmap = QPixmap(url.path()).scaled(QSize(128,128), Qt::KeepAspectRatio, Qt::SmoothTransformation);
-    m_artworkLabel->setPixmap(pixmap);
-    m_url = url;
 }
 
 #include "sensiblewidgets.moc"

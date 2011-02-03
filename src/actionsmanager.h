@@ -19,7 +19,10 @@
 #ifndef ACTIONSMANAGER_H
 #define ACTIONSMANAGER_H
 
-#include "videosettings.h"
+#include "mainwindow.h"
+#include <KMenu>
+#include <KConfigGroup>
+#include <KGlobalAccel>
 #include <KActionCollection>
 #include <QObject>
 #include <QAction>
@@ -29,6 +32,8 @@ namespace Ui
     class MainWindowClass;
 }
 class MainWindow;
+class BangarangApplication;
+class VideoSettings;
 
 /*
  * This class creates and manages all actions for bangarang. 
@@ -41,81 +46,88 @@ class ActionsManager : public QObject
         ActionsManager(MainWindow * parent);
         ~ActionsManager();
         
-        QAction *quit();
-        QAction *playAll();
-        QAction *playSelected();
-        QAction *addSelectedToPlaylist();
-        QAction *removeSelectedFromPlaylist();
-        QAction *fullScreen();
-        QAction *showHideControls();
-        QAction *cancelFullScreenHideControls();
-        QAction *editShortcuts();
-        QAction *playPause();
-        QAction *playNext();
-        QAction *playPrevious();
-        QAction *mute();
-        QAction *removeSelectedItemsInfo();
-        QAction *refreshMediaView();
-        QAction *showVideoSettings();
-        QAction *removeFromSavedList();
-        QAction *newAudioList();
-        QAction *newVideoList();
-        QAction *showItems();
-        QAction *showNowPlayingInfo();
+        KActionCollection *shortcutsCollection() { return m_shortcutsCollection; }
+        KActionCollection *othersCollection() { return m_othersCollection; }
+
+        QAction *action( QString name, bool shortcutsOnly = false );
+
         QMenu *addToSavedAudioListMenu();
         QMenu *addToSavedVideoListMenu();
 
-        QMenu * mediaViewMenu(bool showAbout = false);
+        QMenu * mediaViewMenu(bool showAbout = false, MainWindow::ContextMenuSource menuSource = MainWindow::Default);
+        QMenu * playlistViewMenu();
+        QMenu * nowPlayingContextMenu();
+
+        KMenu * nowPlayingMenu();
+        KMenu * notifierMenu();
+        void setContextMenuSource(MainWindow::ContextMenuSource menuSource);
+        const QList<MediaItem> selectedMediaItems();
+        QMenu * bookmarksMenu();
+        QMenu * infoMenu();
+        void updateToggleFilterText();
+
+        bool m_controlsVisible;
         
     public slots:
         void updateSavedListsMenus();
         
     private:
-
+        BangarangApplication * m_application;
         MainWindow *m_parent; 
         Ui::MainWindowClass *ui;
         VideoSettings *m_videoSettings;
-
-        QAction *m_quit;
-        QAction *m_playAllAction;
-        QAction *m_playSelectedAction;
-        QAction *m_addSelectedToPlayListAction;
-        QAction *m_removeSelectedToPlayListAction;
-        QAction *m_showHideControls;
-        QAction *m_fullScreen;
-        QAction *m_cancelFullScreenHideControls;
-        QAction *m_editShortcuts;
-        QAction *m_playPause;
-        QAction *m_playNext;
-        QAction *m_playPrevious;
-        QAction *m_mute;
-        QAction *m_removeSelectedItemsInfo;
-        QAction *m_refreshMediaView;
-        QAction *m_showVideoSettings;
-        QAction *m_removeFromSavedList;
-        QAction *m_newAudioList;
-        QAction *m_newVideoList;
-        QAction *m_showItems;
-        QAction *m_showNowPlayingInfo;
+	
         QMenu *m_addToAudioSavedList;
         QMenu *m_addToVideoSavedList;
+        QMenu *m_nowPlayingContextMenu;
+        KMenu *m_nowPlayingMenu;
         bool m_contextStackWasVisible;
         int m_previousContextStackIndex;
-
-        KActionCollection *m_actionCollection;
+        QMenu *m_bookmarksMenu;
+        QMenu *m_removeBookmarksMenu;
+        QMenu *m_infoMenu;
         
+        //every actionn which is allowed to have a shortcut
+        KActionCollection *m_shortcutsCollection;
+        //shortcuts that make no sense to have a shortcut
+        KActionCollection *m_othersCollection;
+
+        MainWindow::ContextMenuSource m_contextMenuSource;
+        KConfigGroup m_shortcutsConfig;
+        QString m_playlistRestoreFilter;
+        QString m_mediaListRestoreFilter;
+
     private slots:
+        void mediaViewRefresh();
         void fullScreenToggle();
         void toggleControls();
         void toggleVideoSettings();
+        void toggleAudioSettings();
         void cancelFSHC();
-        void showShortcutsEditor();
-        void hideShortcutsEditor();
+        void toggleShortcutsEditor();
+        void saveShortcuts();
+        void cancelShortcuts();
         void simplePlayPause();
+        void smartPlay();
         void muteAudio();
+        void addSelectedToPlaylistSlot();
+        void addAfterNowPlaying();
+        void removeSelectedFromPlaylistSlot();
+        void removePlaylistSelectionFromPlaylistSlot();
+        void removeSelectedItemsInfoSlot();
+        void playSelectedSlot();
+        void playAllSlot();
         void addToSavedAudioList(QAction *addAction);
         void addToSavedVideoList(QAction *addAction);
         void loadSelectedSources();
         void showInfoForNowPlaying();
+        void toggleShowRemainingTimeSlot();
+        void toggleFilter();
+        void addBookmarkSlot();
+        void activateBookmark(QAction *bookmarkAction);
+        void removeBookmark(QAction *bookmarkAction);
+        void updateOntologies();
+        void addTemporaryAudioStreams();
+        void toggleInfoView();
 };
 #endif //ACTIONSMANAGER_H

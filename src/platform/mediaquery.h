@@ -23,6 +23,8 @@
 #include <Soprano/QueryResultIterator>
 #include <Soprano/Model>
 
+class MediaVocabulary;
+
 class MediaQuery {
     
     public:
@@ -43,7 +45,11 @@ class MediaQuery {
         enum Match {Required = 0, Optional = 1};
         
         enum Order{Ascending = 0, Descending = 1};
-        
+        enum Aggregate{Sum = 0, Count = 1, Average = 2, Min = 3, Max = 4,
+                        CountAverage = 5};
+                        
+        QHash<QString, QString> fieldBindingDictionary;
+       
         void select(const QStringList &bindings, SelectType selectType = NonDistinct);
         void startWhere();
         void addCondition(const QString &condition);
@@ -67,11 +73,33 @@ class MediaQuery {
                      QList<Order> order = QList<Order>());
         void addLimit(int limit);
         void addOffset(int offset);
+        void addSubQuery(MediaQuery subQuery);
         void addExtra(const QString &extra);
-        QString query();
+        QString query(bool excludePrefix = false);
         
         Soprano::QueryResultIterator executeSelect(Soprano::Model* model);
         bool executeAsk(Soprano::Model* model);
+        void addLRIFilterCondition(const QString &lriFilter, MediaVocabulary mediaVocabulary);
+        void addLRIFilterConditions(const QStringList &lriFilterList, MediaVocabulary mediaVocabulary);
+        
+        static QString aggregateBinding(QString binding, Aggregate agg) {
+            if (agg == Sum) {
+                return QString("SUM(?%1) as ?%1_sum ").arg(binding);
+            } else if (agg == Count) {
+                return QString("COUNT(?%1) as ?%1_count ").arg(binding);
+            } else if (agg == Average) {
+                return QString("AVG(?%1) as ?%1_avg ").arg(binding);
+            } else if (agg == Min) {
+                return QString("MIN(?%1) as ?%1_min ").arg(binding);
+            } else if (agg == Max) {
+                return QString("MAX(?%1) as ?%1_max ").arg(binding);
+            } else if (agg == CountAverage) {
+                return QString("(AVG(?%1)*COUNT(?%1)) as ?%1_countavg ").arg(binding);
+            } else {
+                return QString("dummy");
+            }
+        }
+        
         
         static QString addOptional(const QString &str) {
             return QString("OPTIONAL { ") + str + "} . ";
@@ -80,6 +108,15 @@ class MediaQuery {
         static QString hasType(const QString &resourceBinding, const QUrl &type)
         {
             return QString("?%1 rdf:type <%2> . ")
+            .arg(resourceBinding)
+            .arg(type.toString());
+        }
+
+        static QString excludeType(const QString &resourceBinding, const QUrl &type)
+        {
+            return QString("OPTIONAL { ?%1 rdf:type <%2> . "
+                           "?%1 rdf:type ?excludeType . } "
+                           "FILTER ( !bound(?excludeType) ) ")
             .arg(resourceBinding)
             .arg(type.toString());
         }
@@ -97,31 +134,31 @@ class MediaQuery {
         {
             QString statement;
             if (constraint == MediaQuery::Equal) {
-                statement += QString(" (str(?%1) = %2) ")
+                statement += QString(" (?%1 = %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::NotEqual) {
-                statement += QString(" (str(?%1) != %2) ")
+                statement += QString(" (?%1 != %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::Contains) {
-                statement += QString(" (regex(str(?%1), \"%2\", \"i\")) ")
+                statement += QString(" (regex(?%1, \"%2\", \"i\")) ")
                 .arg(binding)
                 .arg(test);
             } else if (constraint == MediaQuery::LessThan) {
-                statement += QString(" (str(?%1) < %2) ")
+                statement += QString(" (?%1 < %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThan) {
-                statement += QString(" (str(?%1) > %2) ")
+                statement += QString(" (?%1 > %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::LessThanOrEqual) {
-                statement += QString(" (str(?%1) <= %2) ")
+                statement += QString(" (?%1 <= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThanOrEqual) {
-                statement += QString(" (str(?%1) >= %2) ")
+                statement += QString(" (?%1 >= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::Bound) {
@@ -171,27 +208,27 @@ class MediaQuery {
         {
             QString statement;
             if (constraint == MediaQuery::Equal) {
-                statement += QString(" (dT(?%1) = %2) ")
+                statement += QString(" (?%1 = %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::NotEqual) {
-                statement += QString(" (dT(?%1) != %2) ")
+                statement += QString(" (?%1 != %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::LessThan) {
-                statement += QString(" (dT(?%1) < %2) ")
+                statement += QString(" (?%1 < %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThan) {
-                statement += QString(" (dT(?%1) > %2) ")
+                statement += QString(" (?%1 > %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::LessThanOrEqual) {
-                statement += QString(" (dT(?%1) <= %2) ")
+                statement += QString(" (?%1 <= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThanOrEqual) {
-                statement += QString(" (dT(?%1) >= %2) ")
+                statement += QString(" (?%1 >= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             }
@@ -203,29 +240,44 @@ class MediaQuery {
         {
             QString statement;
             if (constraint == MediaQuery::Equal) {
-                statement += QString(" (dT(?%1) = %2) ")
+                statement += QString(" (?%1 = %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::NotEqual) {
-                statement += QString(" (dT(?%1) != %2) ")
+                statement += QString(" (?%1 != %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::LessThan) {
-                statement += QString(" (dT(?%1) < %2) ")
+                statement += QString(" (?%1 < %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThan) {
-                statement += QString(" (dT(?%1) > %2) ")
+                statement += QString(" (?%1 > %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::LessThanOrEqual) {
-                statement += QString(" (dT(?%1) <= %2) ")
+                statement += QString(" (?%1 <= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
             } else if (constraint == MediaQuery::GreaterThanOrEqual) {
-                statement += QString(" (dT(?%1) >= %2) ")
+                statement += QString(" (?%1 >= %2) ")
                 .arg(binding)
                 .arg(Soprano::Node::literalToN3(test));
+            }
+            return statement;
+        }
+        static QString filterConstraint(const QString &binding, const QUrl &test,
+                               MediaQuery::Constraint constraint)
+        {
+            QString statement;
+            if (constraint == MediaQuery::Equal) {
+                statement += QString(" (?%1 = <%2>) ")
+                .arg(binding)
+                .arg(test.toString());
+            } else {
+                statement += QString(" (?%1 != <%2>) ")
+                .arg(binding)
+                .arg(test.toString());
             }
             return statement;
         }
@@ -233,8 +285,15 @@ class MediaQuery {
 
     private:
         QString m_queryPrefix;
-        QString m_queryForm;
+        QString m_querySelect;
+        QString m_queryWhere;
         QString m_queryCondition;
+        QString m_queryLimit;
+        QString m_queryOffset;
+        QString m_queryOrder;
         QString m_querySuffix;
+        QStringList m_filterOperators;
+        QHash<QString, Constraint> m_filterOperatorConstraint;
+        QHash<QString, QString> m_fieldBindingDictionary;
 };
 #endif // MEDIAQUERY_H

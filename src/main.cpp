@@ -16,33 +16,32 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "mainwindow.h"
+#include "bangarangapplication.h"
 #include <QtGui/QApplication>
 #include <QtGui/QAction>
-#include "mainwindow.h"
-#include <KApplication>
 #include <KCmdLineArgs>
 #include <KCmdLineOptions>
 #include <KLocalizedString>
 #include <KAboutData>
 
 static KAboutData aboutData( "bangarang", 0,
-        ki18n("Bangarang"), "1.0.1",
-        ki18n("A Media Player"), KAboutData::License_GPL_V2,
-        ki18n("Copyright 2010, Andrew Lake"), KLocalizedString(),
-        "" );
+        ki18n("Bangarang"), "2.0",
+        ki18n("A media player for your KDE desktop"), KAboutData::License_GPL_V3,
+        ki18n("Copyright 2011, Andrew Lake"),
+        ki18n("<b>Note:</b> This product uses the TMDb API but is not endorsed or certified by TMDb. Please help improve available information by visiting http://themoviedb.org<br>"
+              "<b>Note:</b> This product uses the Last.fm API but is not endorsed or certified by Last.fm.  Please help improve available information by visiting http://last.fm<br>"
+              "<b>Note:</b> This product uses the TheTVDB.com API but is not endorsed or certified by TheTVDB.com.  Please help improve available information by visiting http://thetvdb.com"),
+        "http://bangarangkde.wordpress.org" );
 
 int main(int argc, char *argv[])
 {
     aboutData.setProgramIconName("bangarang");
     aboutData.setOrganizationDomain( "mpris.org" ); //for DBus
-    aboutData.addAuthor( ki18n("Andrew (Jamboarder) Lake"), ki18n("Creator"), "jamboarder@yahoo.com");
+    aboutData.addAuthor( ki18n("Andrew (Jamboarder) Lake"), ki18n("Creator"), "jamboarder@gmail.com");
+    aboutData.addCredit(ki18n("Stefan Burnicki"), ki18n("Contributor"));
     aboutData.addCredit(ki18n("Andreas Marschke"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Buschmann"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Janusz Lewandowski"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Kristof Bal"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Ryan Kavanagh"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Sebastian Jambor"), ki18n("Contributor"));
-    aboutData.addCredit(ki18n("Shuizhuyuanluo"), ki18n("Contributor"));
+    aboutData.addCredit(ki18n("Ni Hui"), ki18n("Contributor"));
     aboutData.setBugAddress("http://code.google.com/p/bangarangissuetracking/");
     aboutData.setCustomAuthorText(ki18n("Defects may be reported at http://code.google.com/p/bangarangissuetracking/"), ki18n("Defects may be reported at <a href='http://code.google.com/p/bangarangissuetracking/'>Bangarang Issue Tracker</a>"));
     aboutData.setHomepage("http://gitorious.org/bangarang");
@@ -57,10 +56,11 @@ int main(int argc, char *argv[])
     options.add("debug", ki18n( "Show Additional Debug Output" ));
     KCmdLineArgs::addCmdLineOptions( options );
 
-    KApplication application;
+    BangarangApplication application;
+    application.setup();
 
-    MainWindow w;
-    w.setAboutData(&aboutData);
-    w.show();
+    MainWindow * w = application.mainWindow();
+    w->show();
+    application.processCommandLineArgs();
     return application.exec();
 }

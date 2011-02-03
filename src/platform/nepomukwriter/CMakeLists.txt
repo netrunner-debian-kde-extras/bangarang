@@ -1,32 +1,19 @@
-PROJECT(Bangarang)
-
-set( CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules )
-
-FIND_PACKAGE(KDE4 REQUIRED)
-FIND_PACKAGE(Nepomuk REQUIRED)
-
-INCLUDE(KDE4Defaults)
-
-ADD_DEFINITIONS( ${QT_DEFINITIONS} ${KDE4_DEFINITIONS} )
-
-INCLUDE_DIRECTORIES( 
-    ${KDE4_INCLUDES} 
-    ${KDEMULTIMEDIA_INCLUDE_DIR} 
-    ${NEPOMUK_INCLUDE_DIR} 
-)
-
-SET(BangarangNepomukWriterSources 
-    main.cpp 
+set(BangarangNepomukWriterSources
+    main.cpp
+    nepomukwriter.cpp
 #    ../mediaitemmodel.cpp
     ../mediavocabulary.cpp
+    ../mediaquery.cpp
 )
 
-KDE4_ADD_EXECUTABLE(bangarangnepomukwriter ${BangarangNepomukWriterSources})
+kde4_add_executable(bangarangnepomukwriter ${BangarangNepomukWriterSources})
 
-TARGET_LINK_LIBRARIES(bangarangnepomukwriter 
-    ${NEPOMUK_LIBRARIES} 
-    ${KDEMULTIMEDIA_LIBRARIES} 
-    ${SOPRANO_LIBRARIES} 
+target_link_libraries(bangarangnepomukwriter
+    ${QT_QTCORE_LIBRARY}
+    ${KDE4_KDECORE_LIBS}
+    ${KDE4_KDEUI_LIBS}
+    ${NEPOMUK_LIBRARIES}
+    ${SOPRANO_LIBRARIES}
 )
 
 ########### install files ###############

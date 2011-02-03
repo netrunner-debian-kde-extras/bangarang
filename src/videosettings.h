@@ -19,29 +19,34 @@
 #ifndef VIDEOSETTINGS_H
 #define VIDEOSETTINGS_H
 
-#include <QWidget>
-#include <QVBoxLayout>
-#include <QHBoxLayout>
-#include <QGridLayout>
+#include <QPushButton>
 #include <QSlider>
-#include <QLabel>
-#include <QRadioButton>
-#include <QButtonGroup>
 #include <QGroupBox>
+#include <QRadioButton>
+#include <KConfigGroup>
+#include <KUrl>
 
-#include <KPushButton>
-#include <KButtonGroup>
 
 #include <phonon/videowidget.h>
+#include <phonon/mediacontroller.h>
+
+class MainWindow;
+class BangarangApplication;
+
+namespace Ui {
+   class MainWindowClass;
+};
 
 /**
+ * This class provides Settings for the VideoWidget 
+ * such as it AspectRatio and Colorization
  * @short Video Settings
  * @author Andreas Marschke xxtjaxx@gmail.com
  * @version 0.1
  **/
 using namespace Phonon;
 
-class VideoSettings : public QWidget
+class VideoSettings : public QObject
 {
     Q_OBJECT
 public:
@@ -49,61 +54,20 @@ public:
     /**
      * Default constructor
      **/
-    VideoSettings(VideoWidget *videoWidget ,QWidget *parent);
+    VideoSettings(MainWindow* parent, VideoWidget* widget);
 
     /**
      * Destructor
      */
     virtual ~VideoSettings();
-    void setHideAction(QAction *hideAction);
-
-private:
-    //Qt
-    QVBoxLayout *m_layout;
-    QGridLayout *colorSettings_layout;
-    QVBoxLayout *sizeSettings_layout;
-    QHBoxLayout *button_layout;
-
-    //to have to uninterferring radio groups 
-    QWidget *videoColorWidget;
-    QSlider *brightnessSlider;
-    QSlider *contrastSlider;
-    QSlider *hueSlider;
-    QSlider *saturationSlider;
-
-    QLabel *brightnessLabel;
-    QLabel *contrastLabel;
-    QLabel *hueLabel;
-    QLabel *saturationLabel;
-
-    QWidget *aspectRatio_Widget;
-    QVBoxLayout *aspectRatio_layout;
-    QLabel *aspectRatioLabel;
-    QRadioButton *aspectRatioAuto;
-    QRadioButton *aspectRatioWidget;
-    QRadioButton *aspectRatio4_3;
-    QRadioButton *aspectRatio16_9;
-
-    QWidget *scaleMode_Widget;
-    QVBoxLayout *scaleMode_layout;
-    QLabel *scaleModeLabel;
-    QRadioButton *scaleModeFitInView;
-    QRadioButton *scaleModeScaleAndCrop;
-
-    KPushButton *restoreButton;
-    KPushButton *hideButton;
     
-    VideoWidget *videoWidget;
-    void setupConnections();
-    void setScaleSettingsEnabled(bool enabled);
-        
-signals:
-    void brightnessChanged(qreal num);
-    void contrastChanged(qreal num);
-    void hueChanged(qreal num);
-    void saturationChanged(qreal num);
-    void okClicked();
-private slots:
+    void setMediaController( MediaController *mctrl );
+    MediaController *mediaController() { return m_mediaController; }
+    
+    void restoreVideoSettings(KConfigGroup* config);
+    void saveVideoSettings(KConfigGroup* config);
+    
+public slots: //it should also be possible to use them as normal functions
     void setBrightness(int ch);
     void setContrast(int ch);
     void setHue(int ch);
@@ -113,11 +77,39 @@ private slots:
     void setAspectRatioWidget(bool checked);
     void setAspectRatio4_3(bool checked);
     void setAspectRatio16_9(bool checked);
+    
+    void setSubtitle(int idx);
+    void setAngle(int idx);
 
     void setScaleModeFitInView(bool checked);
     void setScaleModeScaleAndCrop(bool checked);
 
-    void restoreClicked();
+    void restoreDefaults();
+
+    void updateSubtitleCombo();
+    void updateAngleCombo(int selected = -1, bool afterUpdate = false);
+    void readExternalSubtitles(const KUrl &subtitleUrl);
+
+private:
+    void connectAngleCombo();
+    void disconnectAngleCombo();
+    void connectSubtitleCombo();
+    void disconnectSubtitleCombo();
+    
+    Ui::MainWindowClass *ui;
+    BangarangApplication * m_application;
+    MediaController * m_mediaController;
+    VideoWidget *m_videoWidget;
+    QStringList m_extSubtitleTimes;
+    QStringList m_extSubtitles;
+    QStringList m_extSubtitleFiles;
+    void setupConnections();
+    QStringList findSubtitleFiles(const KUrl &url);
+        
+private slots:  
+    void updateAngles(int no);
+    void updateSubtitles();
+    void showExternalSubtitles(qint64 time);
 
 };
 

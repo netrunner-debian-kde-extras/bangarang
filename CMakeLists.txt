@@ -1,36 +1,38 @@
-PROJECT(Bangarang)
+project(Bangarang)
 
-set( CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules )
-set( WITHTRANSLATIONS:BOOL YES )
-FIND_PACKAGE(KDE4 REQUIRED)
-FIND_PACKAGE(Nepomuk REQUIRED)
-FIND_PACKAGE(KdeMultimedia REQUIRED)
+set(WITHTRANSLATIONS YES)
 
-INCLUDE(KDE4Defaults)
+find_package(KDE4 4.5.0 REQUIRED)
+find_package(Nepomuk REQUIRED)
 
-ADD_DEFINITIONS( ${QT_DEFINITIONS} ${KDE4_DEFINITIONS} )
+include(KDE4Defaults)
+
+add_definitions(${QT_DEFINITIONS} ${KDE4_DEFINITIONS} "-DDISABLE_NEPOMUK_LEGACY=1")
 
 find_package(Taglib REQUIRED)
 
-INCLUDE_DIRECTORIES( 
-    ${KDE4_INCLUDES} 
-    ${KDEMULTIMEDIA_INCLUDE_DIR} 
-    ${NEPOMUK_INCLUDE_DIR} 
-    ${TAGLIB_INCLUDES} 
-    ${TAGLIB_INCLUDES}/.. 
-    /usr/include/taglib 
+include_directories(
+    ${KDE4_INCLUDES}
+    ${KROSS_INCLUDES}
+    ${NEPOMUK_INCLUDE_DIR}
+    ${QT_QTSCRIPT_INCLUDES}
+    ${SOPRANO_INCLUDE_DIR}
+    ${TAGLIB_INCLUDES}
 )
 
-add_subdirectory( icons )
-add_subdirectory( src )
+add_subdirectory(icons)
+add_subdirectory(src)
 
-find_package(Msgfmt REQUIRED)
-find_package(Gettext REQUIRED)
-add_subdirectory( translations )
+if (WITHTRANSLATIONS)
+    find_package(Msgfmt REQUIRED)
+    find_package(Gettext REQUIRED)
+    add_subdirectory(po)
+endif( WITHTRANSLATIONS)
 
 ########### install files ###############
 
 install(FILES data/bangarang.desktop  DESTINATION ${XDG_APPS_INSTALL_DIR})
 install(FILES data/bangarang_play_dvd.desktop data/bangarang_play_cd.desktop DESTINATION ${DATA_INSTALL_DIR}/solid/actions)
-#install(FILES <bangarangDataFilesHere> DESTINATION ${DATA_INSTALL_DIR}/bangarang)
+#install(FILES data/genrerc DESTINATION ${DATA_INSTALL_DIR}/bangarang)
+#install(FILES data/thumbnails/Rock.png DESTINATION ${DATA_INSTALL_DIR}/bangarang/thumbnails/genres)
 #install(FILES bangarangrc DESTINATION ${CONFIG_INSTALL_DIR})
