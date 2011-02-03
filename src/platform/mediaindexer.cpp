@@ -18,12 +18,13 @@
 
 #include "mediaindexer.h"
 #include "mediaitemmodel.h"
-#include "utilities.h"
+#include "utilities/utilities.h"
 #include "mediavocabulary.h"
 
 #include <KUrl>
 #include <KDebug>
 #include <KStandardDirs>
+#include <KLocale>
 #include <nepomuk/resource.h>
 #include <nepomuk/variant.h>
 #include <Nepomuk/ResourceManager>
@@ -34,21 +35,34 @@
 
 MediaIndexer::MediaIndexer(QObject * parent) : QObject(parent)
 {
-    Nepomuk::ResourceManager::instance()->init();
-    if (Nepomuk::ResourceManager::instance()->initialized()) {
-        m_nepomukInited = true; //resource manager inited successfully
-    } else {
-        m_nepomukInited = false; //no resource manager
-    }
+    qRegisterMetaType<QProcess::ExitStatus>("QProcess::ExitStatus");
+    m_nepomukInited = Utilities::nepomukInited();
     m_state = Idle;
+    m_percent = 0;
+    m_writer = new KProcess(this);
+    m_writer->setOutputChannelMode(KProcess::OnlyStdoutChannel);
+    m_writer->setWorkingDirectory(KStandardDirs::locateLocal("data", "bangarang/", true));
+    connect(this, SIGNAL(startWriter(QStringList)), this, SLOT(startWriterSlot(QStringList)));
+    connect(m_writer, SIGNAL(readyReadStandardOutput()), this, SLOT(processWriterOutput()));
+    connect(m_writer, SIGNAL(started()), this, SIGNAL(started()));
+    connect(m_writer, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(finished(int, QProcess::ExitStatus)));
+    connect(m_writer, SIGNAL(error(QProcess::ProcessError)), this, SLOT(error(QProcess::ProcessError)));
 }
 
 MediaIndexer::~MediaIndexer()
 {
 }
 
+MediaIndexer::State MediaIndexer::state()
+{
+    return m_state;
+}
+
 void MediaIndexer::updateInfo(const QList<MediaItem> &mediaList)
 {
+    if (m_state == Running) {
+        return;
+    }
     if (m_nepomukInited && (mediaList.count() > 0)) {
         QString filename = QString("bangarang/%1.jb")
                                 .arg(QDateTime::currentDateTime().toString("yyyyMMddhhmmsszzz"));
@@ -67,19 +81,12 @@ void MediaIndexer::updateInfo(const QList<MediaItem> &mediaList)
         }
         out << "\n" <<"\n";
         file.close();
-        KProcess * writer = new KProcess();
-        writer->setProgram("bangarangnepomukwriter", QStringList(path));
-        writer->setOutputChannelMode(KProcess::OnlyStdoutChannel);
-        connect(writer, SIGNAL(readyReadStandardOutput()), this, SLOT(processWriterOutput()));
-        connect(writer, SIGNAL(started()), this, SIGNAL(started()));
-        connect(writer, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(finished(int, QProcess::ExitStatus)));
-        connect(writer, SIGNAL(error(QProcess::ProcessError)), this, SLOT(error(QProcess::ProcessError)));
-        m_mediaLists.insert(m_writers.count(), mediaList);
-        m_urlLists.insert(m_writers.count(), urls);
-        m_writers.append(writer);
-        writer->start();
-        m_state = Running;
-        emit percentComplete(0);
+        m_mediaList = mediaList;
+        m_urlList = urls;
+        emit startWriter(QStringList(path));
+        m_status["description"] = i18n("Starting update...");
+        m_status["progress"] = 0;
+        emit updateStatus(m_status);
     }
 }
 
@@ -92,6 +99,9 @@ void MediaIndexer::updateInfo(const MediaItem &mediaItem)
 
 void MediaIndexer::removeInfo(const QList<MediaItem> &mediaList)
 {
+    if (m_state == Running) {
+        return;
+    }
     if (m_nepomukInited && (mediaList.count() > 0)) {
         QString filename = QString("bangarang/%1.jb")
                                .arg(QDateTime::currentDateTime().toString("yyyyMMddhhmmsszzz"));
@@ -108,18 +118,10 @@ void MediaIndexer::removeInfo(const QList<MediaItem> &mediaList)
         }
         out << "\n" <<"\n";
         file.close();
-        KProcess * writer = new KProcess();
-        writer->setProgram("bangarangnepomukwriter", QStringList(path));
-        writer->setWorkingDirectory(KStandardDirs::locateLocal("data", "bangarang/", true));
-        writer->setOutputChannelMode(KProcess::OnlyStdoutChannel);
-        connect(writer, SIGNAL(readyReadStandardOutput()), this, SLOT(processWriterOutput()));
-        connect(writer, SIGNAL(started()), this, SIGNAL(started()));
-        connect(writer, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(finished(int, QProcess::ExitStatus)));
-        connect(writer, SIGNAL(error(QProcess::ProcessError)), this, SLOT(error(QProcess::ProcessError)));
-        m_writers.append(writer);
-        writer->start();
-        m_state = Running;
-        emit percentComplete(0);
+        emit startWriter(QStringList(path));
+        m_status["description"] = i18n("Starting update...");
+        m_status["progress"] = 0;
+        emit updateStatus(m_status);
     }
 }
 
@@ -130,9 +132,13 @@ void MediaIndexer::removeInfo(const MediaItem &mediaItem)
     removeInfo(mediaList);
 }
 
-void MediaIndexer::updatePlaybackInfo(const QString &url, bool incrementPlayCount, const QDateTime &playDateTime)
+void MediaIndexer::updatePlaybackInfo(const QString &resourceUri, bool incrementPlayCount, const QDateTime &playDateTime)
 {
-    if (m_nepomukInited && !url.isEmpty()) {
+    if (m_state == Running) {
+        return;
+    }
+    if (m_nepomukInited && !resourceUri.isEmpty()) {
+        kDebug() << "Updating playback info...";
         QString filename = QString("bangarang/%1.jb")
         .arg(QDateTime::currentDateTime().toString("yyyyMMddhhmmsszzz"));
         QString path = KStandardDirs::locateLocal("data", filename, true);
@@ -141,11 +147,11 @@ void MediaIndexer::updatePlaybackInfo(const QString &url, bool incrementPlayCoun
             return;
         }
         QTextStream out(&file);
-        out << "[" << url << "]\n";
+        out << "[" << resourceUri << "]\n";
         out << "lastPlayed = " << playDateTime.toString("yyyyMMddhhmmss") << "\n";
         if (incrementPlayCount) {
             int playCount = 0;
-            Nepomuk::Resource res(url);
+            Nepomuk::Resource res(resourceUri);
             if (res.exists()) {
                 playCount = res.property(MediaVocabulary().playCount()).toInt();
             }   
@@ -153,23 +159,16 @@ void MediaIndexer::updatePlaybackInfo(const QString &url, bool incrementPlayCoun
             out << "playCount = " << playCount << "\n";
         }
         out << "\n" << "\n";
-        KProcess * writer = new KProcess();
-        writer->setProgram("bangarangnepomukwriter", QStringList(path));
-        writer->setWorkingDirectory(KStandardDirs::locateLocal("data", "bangarang/", true));
-        writer->setOutputChannelMode(KProcess::OnlyStdoutChannel);
-        connect(writer, SIGNAL(started()), this, SIGNAL(started()));
-        connect(writer, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(finished(int, QProcess::ExitStatus)));
-        connect(writer, SIGNAL(error(QProcess::ProcessError)), this, SLOT(error(QProcess::ProcessError)));
-        m_writers.append(writer);
-        writer->start();
-        m_state = Running;
-        emit percentComplete(0);
+        emit startWriter(QStringList(path));
     }
 }
 
-void MediaIndexer::updateRating(const QString &url, int rating)
+void MediaIndexer::updateRating(const QString & resourceUri, int rating)
 {
-    if (m_nepomukInited && !url.isEmpty()
+    if (m_writer->state() == QProcess::Starting || m_state == Running) {
+        return;
+    }
+    if (m_nepomukInited && !resourceUri.isEmpty()
         && (rating >= 0) && (rating <= 10)) {
         QString filename = QString("bangarang/%1.jb")
         .arg(QDateTime::currentDateTime().toString("yyyyMMddhhmmsszzz"));
@@ -179,20 +178,10 @@ void MediaIndexer::updateRating(const QString &url, int rating)
             return;
         }
         QTextStream out(&file);
-        out << "[" << url << "]\n";
+        out << "[" << resourceUri << "]\n";
         out << "rating = " << rating << "\n";
         out << "\n" << "\n";
-        KProcess * writer = new KProcess();
-        writer->setProgram("bangarangnepomukwriter", QStringList(path));
-        writer->setWorkingDirectory(KStandardDirs::locateLocal("data", "bangarang/", true));
-        writer->setOutputChannelMode(KProcess::OnlyStdoutChannel);
-        connect(writer, SIGNAL(started()), this, SIGNAL(started()));
-        connect(writer, SIGNAL(finished(int, QProcess::ExitStatus)), this, SLOT(finished(int, QProcess::ExitStatus)));
-        connect(writer, SIGNAL(error(QProcess::ProcessError)), this, SLOT(error(QProcess::ProcessError)));
-        m_writers.append(writer);
-        writer->start();
-        m_state = Running;
-        emit percentComplete(0);
+        emit startWriter(QStringList(path));
     }
 }
 
@@ -204,6 +193,8 @@ void MediaIndexer::writeRemoveInfo(MediaItem mediaItem, QTextStream &out)
         out << "audioType = " << mediaItem.fields["audioType"].toString() << "\n";
     } else if (mediaItem.type == "Video") {
         out << "videoType = " << mediaItem.fields["videoType"].toString() << "\n";
+    } else if (mediaItem.type == "Category") {
+        out << "categoryType = " << mediaItem.fields["categoryType"].toString() << "\n";
     }
     out << "url = " << mediaItem.fields["url"].toString() << "\n";
     out << "removeInfo = true" << "\n";
@@ -221,58 +212,74 @@ void MediaIndexer::writeUpdateInfo(MediaItem mediaItem, QTextStream &out)
             out << i.key() << " = " << i.value().toDateTime().toString("yyyyMMddhhmmss") << "\n";
         } else if (i.value().type() == QVariant::DateTime) {
             out << i.key() << " = " << i.value().toDateTime().toString("yyyyMMdd") << "\n";
+        } else if (i.value().type() == QVariant::StringList){
+            out << i.key() << " = " << i.value().toStringList().join("||")  << "\n";
         } else {
             out << i.key() << " = " << i.value().toString()  << "\n";
         }
     }
 }
 
+void MediaIndexer::startWriterSlot(const QStringList &args)
+{
+    m_writer->setProgram("bangarangnepomukwriter", args);
+    m_writer->start();
+    m_state = Running;
+}
+
 void MediaIndexer::processWriterOutput()
 {
-    for (int i = 0; i < m_writers.count(); i++) {
-        m_writers.at(i)->setReadChannel(QProcess::StandardOutput);
-        while (!m_writers.at(i)->atEnd()) {
-            if (m_writers.at(i)->canReadLine()) {
-                char buffer[1024];
-                qint64 lineLength = m_writers.at(i)->readLine(buffer, sizeof(buffer));
-                if (lineLength != -1) {
-                    QString line = QUrl::fromPercentEncoding(buffer);
-                    if (line.startsWith("BangarangProgress:")) {
-                        int percent = line.remove("BangarangProgress:").trimmed().toInt();
-                        emit percentComplete(percent);
-                    } else if (line.startsWith("BangarangSignal:sourceInfoUpdated:")) {
-                        QString url = line.remove("BangarangSignal:sourceInfoUpdated:").trimmed();
-                        QList<QString> urls = m_urlLists[i];
-                        int index = urls.indexOf(url);
-                        if (index != -1) {
-                            MediaItem mediaItem = m_mediaLists[i].at(index);
-                            emit sourceInfoUpdated(mediaItem);
-                        }
-                    } else if (line.startsWith("BangrangSignal:urlInfoRemoved:")) {
-                        QString url = line.remove("BangrangSignal:urlInfoRemoved:").trimmed();
-                        emit urlInfoRemoved(url);
-                    }
-                }
-            }
+    m_writer->setReadChannel(QProcess::StandardOutput);
+    while (!m_writer->atEnd() && m_writer->canReadLine()) {
+        char buffer[1024];
+        qint64 lineLength = m_writer->readLine(buffer, sizeof(buffer));
+        if (lineLength == -1) {
+            continue;
         }
-    }                     
+
+        QString line = QUrl::fromPercentEncoding(buffer);
+        if (line.startsWith("BangarangProgress:")) {
+            m_percent = line.remove("BangarangProgress:").trimmed().toInt();
+        } else if (line.startsWith("BangarangSignal:sourceInfoUpdated:")) {
+            QString url = line.remove("BangarangSignal:sourceInfoUpdated:").trimmed();
+            int index = m_urlList.indexOf(url);
+            if (index == -1) {
+                continue;
+            }
+            MediaItem mediaItem = m_mediaList.at(index);
+            Nepomuk::Resource res(KUrl(mediaItem.url));
+            if (res.exists()) {
+                mediaItem.fields["resourceUri"] = res.resourceUri().toString();
+            }
+            emit sourceInfoUpdated(mediaItem);
+            m_status["description"] = i18n("Updated: %1 - %2", mediaItem.title, mediaItem.subTitle);
+            m_status["progress"] = m_percent;
+            emit updateStatus(m_status);
+        } else if (line.startsWith("BangrangSignal:urlInfoRemoved:")) {
+            QString resourceUri = line.remove("BangrangSignal:urlInfoRemoved:").trimmed();
+            m_status["description"] = i18n("Removing info...");
+            m_status["progress"] = m_percent;
+            emit updateStatus(m_status);
+            emit urlInfoRemoved(resourceUri);
+        } else if (line.startsWith("BangarangMessage:")) {
+            QString message = line.remove("BangarangMessage:").trimmed();
+            m_status["description"] = message;
+            m_status["progress"] = m_percent;
+            emit updateStatus(m_status);
+        } else if (line.startsWith("BangarangDebug:")) {
+            kDebug() << line.remove("BangarangDebug:");
+        }
+    }
 }
 
 void MediaIndexer::finished(int exitCode, QProcess::ExitStatus exitStatus)
 {
+    m_status["description"] = QString();
+    m_status["progress"] = -1;
+    emit updateStatus(m_status);
     emit finished();
-    bool isAllFinished = true;
-    for (int i = 0; i < m_writers.count(); i++) {
-        if (m_writers.at(i)->state() == QProcess::Running ||
-            m_writers.at(i)->state() == QProcess::Starting) {
-            isAllFinished = false;
-        }
-    }
-    
-    if (isAllFinished) {
-        m_state = Idle;
-        emit allFinished();
-    }
+    m_state = Idle;
+    emit allFinished();
     Q_UNUSED(exitCode);
     Q_UNUSED(exitStatus);
 }
@@ -281,3 +288,4 @@ void MediaIndexer::error(QProcess::ProcessError error)
 {
     kDebug() << error;
 }
+#include "mediaindexer.moc"

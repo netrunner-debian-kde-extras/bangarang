@@ -21,12 +21,18 @@
 
 #include <KNotificationRestrictions>
 #include <QObject>
+#include <QStandardItem>
 #include <phonon/mediaobject.h>
 #include <phonon/mediacontroller.h>
 
 class MediaItemModel;
 class MediaItem;
 class MediaIndexer;
+class MediaSortFilterProxyModel;
+class QSortFilterProxyModel;
+class BangarangApplication;
+
+
 
 /**
  * This class provides MediaItemModels for a playlist and a queue.
@@ -45,7 +51,6 @@ class Playlist : public QObject
     Q_OBJECT
     
     public:
-        enum Mode { Normal = 0, Shuffle = 1};
         enum Model { PlaylistModel = 0, QueueModel = 1};
         enum State { Finished = 0, Loading = 1, Playing = 2};
         
@@ -91,26 +96,49 @@ class Playlist : public QObject
         Phonon::MediaObject * mediaObject();
         
         /**
-         * Returns the current Playlist mode.
-         *
-         * @returns Playlist::Mode (see enum)
-         */
-        Playlist::Mode mode();
-        
-        /**
          * Returns the MediaItemModel containing the currently
          * playing MediaItem.
          */
         MediaItemModel * nowPlayingModel();
+
+        /**
+         * Returns the filter proxy model used
+         */
+        QSortFilterProxyModel * filterProxyModel();
         
+        /**
+         * Insert item at specified row of the specified model
+         *
+         * @param row row of the specified model
+         * @param model either Playlist::PlaylistModel or Playlist::QueueModel
+         * @param mediaItem MediaItem to insert.
+         */
+        void insertMediaItemAt(int row, Model model, const MediaItem &mediaItem);
+
+        /**
+         * Insert item at specified row of the specified model
+         *
+         * @param row row of the specified model
+         * @param model either Playlist::PlaylistModel or Playlist::QueueModel
+         * @param mediaList MediaList to insert.
+         */
+        void insertMediaListAt(int row, Model model, const QList<MediaItem> &mediaList);
+
+        /**
+         * Returns true if mediaItem is in playlist
+         *
+         * @param mediaItem MediaItem to check.
+         **/
+        bool isInPlaylist(const MediaItem &mediaItem);
+
         /**
          * Plays item at the specified row of the specified model
          *
          * @param row row of the specified model
          * @param model either Playlist::PlaylistModel or Playlist::QueueModel
          */
-        void playItemAt(int row, Playlist::Model model = Playlist::PlaylistModel);
-        
+        void playItemAt(int row, Model model);
+
         /**
          * Returns the MediaItemModel containing the list of MediaItems
          * in the playlist.
@@ -135,8 +163,16 @@ class Playlist : public QObject
          * playlist model. 
          *
          * @param row row of playlist model
+         * @param emitMediaListChange whether the model/playlist should be notified about the change.
+         * This should only be false if you remove more than one item. For the last this should be true in any case.
          */
-        void removeMediaItemAt(int row);
+        void removeMediaItemAt(int row, bool emitMediaListChange = true);
+
+        /**
+         * Removes a complete list of MediaItems from the playlist.
+         * @param list The list of items to be removed
+         */
+        void removeMediaListItems(const QList<MediaItem> &list);
         
         /**
          * Sets the Media Object the playlist should use
@@ -146,12 +182,9 @@ class Playlist : public QObject
         void setMediaObject(Phonon::MediaObject *mediaObject);
         
         /**
-         * Sets the Playlist queuing mode
-         *
-         * @param mode mode to add MediaItems to the queue. 
-         *             Either Playlist::Normal or Playlist::Shuffle.
+         * Returns true if repeat is on, false otherwise
          */
-        void setMode(Playlist::Mode mode);
+        bool repeatMode();
         
         /**
          * Sets whether or playback should repeat after playing
@@ -161,7 +194,18 @@ class Playlist : public QObject
          *               when all items in the playlist has 
          *               been played.
          */
-        void setRepeat(bool repeat);
+        void setRepeatMode(bool repeat);
+        
+        /**
+         * Sets whether or not to shuffle playlist items into queue
+         * @param shuffle true to shuffle, false to add sequentially
+         */
+        void setShuffleMode(bool shuffle);
+        
+        /**
+         * Returns true if shuffle is on, false otherwise
+         */
+        bool shuffleMode();
         
         /**
         * Returns the loading state of the Playlist.
@@ -170,6 +214,18 @@ class Playlist : public QObject
         */
         Playlist::State state();
         
+        /**
+        * Returns the media controller object
+        * @returns Phonon::MediaController
+        */
+        Phonon::MediaController *mediaController() { return m_mediaController; }
+        
+        /**
+        * Builds an url of the item currently playing
+        * @returns A mediaItem Url
+        */
+        QString currentUrl() { return m_currentUrl; }
+               
     public slots:
         /**
          * Play next MediaItem in queue.
@@ -202,13 +258,29 @@ class Playlist : public QObject
          */
         void playlistFinished();
         
+        /**
+         * Emitted when mode changes
+         * @param mode true if shuffle is on, false otherwise
+         */
+        void shuffleModeChanged(bool shuffle);
+        
+        /**
+        * Emitted when repeat is changed
+        * @param repeat true if repeat is on, false otherwise
+        */
+        void repeatModeChanged(bool repeat);
+        
+        
+        
     private:
+        BangarangApplication *m_application;
         QObject * m_parent;
         MediaItemModel * m_currentPlaylist;
         MediaItemModel * m_nowPlaying;
         MediaItemModel * m_queue;
-        Playlist::Mode m_mode;
-        int m_repeat;
+        MediaSortFilterProxyModel *m_filterProxyModel;
+        bool m_shuffle;
+        bool m_repeat;
         int m_queueDepth;
         int m_oldPlaylistLength;
         QList<int> m_playlistIndices;
@@ -224,12 +296,15 @@ class Playlist : public QObject
         Playlist::State m_state;
         MediaIndexer * m_mediaIndexer;
         bool m_playbackInfoWritten;
+        int m_playbackInfoChecks;
         void buildQueueFrom(int playlistRow);
         void shuffle();
         void orderByPlaylist();
         void addToQueue();
         bool m_hadVideo;
         KNotificationRestrictions * m_notificationRestrictions;
+        QList<QString> m_streamListUrls;
+        QString m_currentUrl;
         
     private slots:
         void currentSourceChanged(const Phonon::MediaSource & newSource);
@@ -240,6 +315,7 @@ class Playlist : public QObject
         void stateChanged(Phonon::State newstate, Phonon::State oldstate);
         void updatePlaybackInfo(qint64 time);
         void metaDataChanged();
+        void playlistModelItemChanged(QStandardItem *item);
         
 };
 #endif // PLAYLIST_H

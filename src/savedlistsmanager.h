@@ -29,6 +29,8 @@ namespace Ui
 }
 class MainWindow;
 class MediaItem;
+class MediaItemModel;
+class BangarangApplication;
 
 /*
  * This class provides a user interface for saving and removing media lists
@@ -59,8 +61,13 @@ class SavedListsManager : public QObject
         void removeSelected();
         void saveAudioListSettings();
         void saveVideoListSettings();
+        void savePlaylist();
+        void loadPlaylist();
+        void showAudioSavedListSettings();
+        void showVideoSavedListSettings();
         
     private:
+        BangarangApplication * m_application;
         MainWindow *m_parent; 
         Ui::MainWindowClass *ui;
         int m_startRow;
@@ -77,11 +84,10 @@ class SavedListsManager : public QObject
         void audioListsSelectionChanged(const QItemSelection & selected, const QItemSelection & deselected);
         void videoListsSelectionChanged(const QItemSelection & selected, const QItemSelection & deselected);
         void mediaListChanged();
+        void infoBoxSelectionChanged(QList<MediaItem> selectedItems);
         void removeAudioList();
         void removeVideoList();
         void loadSavedListsIndex();
-        void showAudioSavedListSettings();
-        void showVideoSavedListSettings();
 
 };
 #endif //SAVEDLISTSMANAGER_H

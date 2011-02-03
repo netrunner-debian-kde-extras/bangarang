@@ -19,10 +19,16 @@
 #ifndef MEDIAVIEW_H
 #define MEDIAVIEW_H
 
+#include <QtCore>
 #include <QTreeView>
 #include <QAction>
+#include "mediaitemdelegate.h"
 
 class MainWindow;
+class MediaItemModel;
+class BangarangApplication;
+class MediaSortFilterProxyModel;
+class QSortFilterProxyModel;
 
 /*
  * This class is mostly to provide custom context menus for the QTreeView
@@ -35,15 +41,28 @@ class MediaView : public QTreeView
         MediaView(QWidget * parent = 0);
         ~MediaView();
         void setMainWindow(MainWindow * mainWindow);
+        void setMode(MediaItemDelegate::RenderMode Mode);
+        MediaItemDelegate::RenderMode mode();
+        void setSourceModel(QAbstractItemModel * mediaItemModel);
+        MediaItemModel *sourceModel() { return m_mediaItemModel; }
+        QSortFilterProxyModel *filterProxyModel() { return (QSortFilterProxyModel *) m_proxyModel; }
 
     protected:
-        void contextMenuEvent (QContextMenuEvent * event);
+        void contextMenuEvent(QContextMenuEvent * event);
+        bool viewportEvent(QEvent * event); 
         
     private:
-        MainWindow * m_mainWindow;
+        BangarangApplication * m_application;
+        MediaItemModel * m_mediaItemModel;
+        MediaItemDelegate * m_mediaItemDelegate;
+        MediaSortFilterProxyModel *m_proxyModel;
+        MediaItemDelegate::RenderMode m_mode;
         QAction * playAllAction;
         QAction * playSelectedAction;   
         QAction * addSelectedToPlayListAction;
         QAction * removeSelectedToPlayListAction;
+    
+    private slots:
+        void mediaListChanged();
 };
 #endif // MEDIAVIEW_H
