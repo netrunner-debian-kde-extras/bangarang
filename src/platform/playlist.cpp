@@ -656,7 +656,6 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
         isKDE46OrGreater = true;
     }
     
-    
     QDBusInterface iface(
     		"org.kde.kded",
     		"/modules/powerdevil",

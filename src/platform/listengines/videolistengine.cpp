@@ -480,7 +480,7 @@ void VideoListEngine::run()
             query.endWhere();
             QStringList orderByBindings = bindings;
             query.orderBy(orderByBindings);
-
+            
             Soprano::QueryResultIterator it = query.executeSelect(m_mainModel);
             
             //Build media list from results

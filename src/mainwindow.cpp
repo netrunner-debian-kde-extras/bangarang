@@ -594,13 +594,6 @@ void MainWindow::on_closeMediaListFilter_clicked()
 /*----------------------------------------
   -- SLOTS for SIGNALS from Media Object --
   ----------------------------------------*/
-void MainWindow::volumeChanged(qreal newVolume)
-{
-    //Phonon::AudioOutput::volume() only return the volume at app start.
-    //Therefore I need to track volume changes independently.
-    m_volume = newVolume;
-}
-
 void MainWindow::updateSeekTime(qint64 time)
 {
     //Update seek time

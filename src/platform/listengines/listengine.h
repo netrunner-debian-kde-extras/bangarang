@@ -171,10 +171,6 @@ class ListEngine : public QThread
         void updateStatus(QHash<QString, QVariant> updatedStatus);
         void loadOtherEngine(const MediaListProperties &mediaListProperties, const QString &requestSignature, const QString &subRequestSignature);
         
-    Q_SIGNALS:
-        void results(QString m_requestSignature, QList<MediaItem> mediaList, MediaListProperties m_mediaListProperties, bool done, QString m_subRequestSignature);
-        void updateMediaItems(QList<MediaItem> mediaList);
-        
     protected:
         ListEngineFactory * m_parent;
         MediaListProperties m_mediaListProperties;
