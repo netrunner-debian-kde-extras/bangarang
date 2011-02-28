@@ -1,3 +1,14 @@
+bangarang (1.0.1-2) unstable; urgency=low
+
+  * Bump to standards version 3.9.1
+  * Dropped README.source, no longer needed now that we're using 3.0 (quilt).
+  * Fix FTBFS with gold or ld --no-as-needed with 01_linker_fix.diff
+    (Closes: #615694)
+  * Fix incorrect-locale-code cz->cs
+  * Turned on DM-Upload-Allowed
+
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Sat, 05 Mar 2011 19:13:30 -0500
+
 bangarang (1.0.1-1) unstable; urgency=low
 
   * New upstream release 
