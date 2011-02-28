@@ -13,6 +13,7 @@ Standards-Version: 3.9.1
 Homepage: http://gitorious.org/bangarang
 Vcs-Browser: http://git.debian.org/?p=pkg-kde/kde-extras/bangarang.git
 Vcs-Git: git://git.debian.org/pkg-kde/kde-extras/bangarang.git
+DM-Upload-Allowed: yes
 
 Package: bangarang
 Architecture: any
