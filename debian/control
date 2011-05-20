@@ -9,7 +9,7 @@ Build-Depends: debhelper (>= 7.3),
  kdemultimedia-dev (>= 4:4.5.0),
  shared-desktop-ontologies,
  libtag1-dev
-Standards-Version: 3.9.1
+Standards-Version: 3.9.2
 Homepage: http://gitorious.org/bangarang
 Vcs-Browser: http://git.debian.org/?p=pkg-kde/kde-extras/bangarang.git
 Vcs-Git: git://git.debian.org/pkg-kde/kde-extras/bangarang.git
