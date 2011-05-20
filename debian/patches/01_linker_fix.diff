@@ -1,0 +1,30 @@
+Description: Fixes build with gold or ld --no-add-needed
+Author: Humber Julien <julroy67@gmail.com>
+Origin: upstream, http://gitorious.org/bangarang/bangarang/commit/469014a5
+Bug-Debian: http://bugs.debian.org/615964
+Reviewed-By: Ryan Kavanagh <ryanakca@kubuntu.org>
+Last-Update: 2011-02-27
+Index: bangarang-1.0.1/src/CMakeLists.txt
+===================================================================
+--- bangarang-1.0.1.orig/src/CMakeLists.txt	2010-12-30 13:34:46.200022001 -0500
++++ bangarang-1.0.1/src/CMakeLists.txt	2010-12-30 13:35:10.000000000 -0500
+@@ -65,6 +65,7 @@
+     ${KDE4_KDEUI_LIBS} 
+     ${KDE4_KPARTS_LIBS} 
+     ${KDE4_PHONON_LIBS} 
++    ${KDE4_SOLID_LIBS}
+     ${NEPOMUK_LIBRARIES} 
+     ${KDEMULTIMEDIA_LIBRARIES} 
+     ${SOPRANO_LIBRARIES} 
+Index: bangarang-1.0.1/src/platform/nepomukwriter/CMakeLists.txt
+===================================================================
+--- bangarang-1.0.1.orig/src/platform/nepomukwriter/CMakeLists.txt	2010-12-30 13:51:32.872022000 -0500
++++ bangarang-1.0.1/src/platform/nepomukwriter/CMakeLists.txt	2010-12-30 13:52:02.636022006 -0500
+@@ -24,6 +24,7 @@
+ KDE4_ADD_EXECUTABLE(bangarangnepomukwriter ${BangarangNepomukWriterSources})
+ 
+ TARGET_LINK_LIBRARIES(bangarangnepomukwriter 
++    ${KDE4_KDEUI_LIBS}
+     ${NEPOMUK_LIBRARIES} 
+     ${KDEMULTIMEDIA_LIBRARIES} 
+     ${SOPRANO_LIBRARIES} 
