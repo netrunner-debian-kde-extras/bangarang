@@ -2,8 +2,3 @@
 
 %:
 	dh --with kde $@
-
-override_dh_auto_install:
-	dh_auto_install
-	mv debian/bangarang/usr/share/locale/cz \
-	   debian/bangarang/usr/share/locale/cs
