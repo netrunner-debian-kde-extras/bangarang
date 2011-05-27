@@ -1,19 +1,16 @@
-bangarang (2.0-1) UNRELEASED; urgency=low
+bangarang (2.0.1-1) unstable; urgency=low
 
-  ********************************
-  * UNRELEASED pending KDE 4.5.0 *
-  * Please update manpage before *
-  * uploading.                   *
-  ********************************
-
-
-  * Imported Upstream version 2.0
+  * New upstream release
+    + We need at least KDE 4.5.0, updated Build-Depends accordingly
+    + Dropped 01_linker_fix.diff, applied upstream.
+    + We no longer need to correct the cz locale code to cs
   * Updated copyright file
-  * Standards Version 3.9.1
-  * Dropped README.source
-  * At least KDE 4.5.0
+  * Dropped README.source from quilt days
+  * Ignore .pc in git
+  * Bumped Standards to 3.9.2
+  * Fix a typo in bangarang binary, 01_psychadelic_psychedelic.diff
 
- -- Ryan Kavanagh <ryanakca@kubuntu.org>  Thu, 03 Feb 2011 15:17:49 -0500
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Fri, 27 May 2011 08:49:36 -0400
 
 bangarang (1.0.1-2) unstable; urgency=low
 
