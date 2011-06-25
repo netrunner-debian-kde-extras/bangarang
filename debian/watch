@@ -1,4 +1,5 @@
 version=3
 
+opts=downloadurlmangle=s@^@http:@ \
 http://code.google.com/p/bangarangissuetracking/downloads/list \
-    http://bangarangissuetracking.googlecode.com/files/bangarang-(.*)\.tar\.gz
+    //bangarangissuetracking.googlecode.com/files/bangarang-(.*)\.tar\.gz
