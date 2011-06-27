@@ -2,13 +2,14 @@ Source: bangarang
 Section: kde
 Priority: optional
 Maintainer: Debian KDE Extras Team <pkg-kde-extras@lists.alioth.debian.org>
-Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org> , Andreas Marschke <xxtjaxx@gmail.com>
-Build-Depends: debhelper (>= 7.3),
- pkg-kde-tools (>= 0.5.0),
- cmake,
- kdemultimedia-dev (>= 4:4.5.0),
- shared-desktop-ontologies,
- libtag1-dev
+Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org>,
+           Andreas Marschke <xxtjaxx@gmail.com>
+Build-Depends: cmake,
+               debhelper (>= 7.3),
+               kdemultimedia-dev (>= 4:4.5.0),
+               libtag1-dev,
+               pkg-kde-tools (>= 0.5.0),
+               shared-desktop-ontologies
 Standards-Version: 3.9.2
 Homepage: http://gitorious.org/bangarang
 Vcs-Browser: http://git.debian.org/?p=pkg-kde/kde-extras/bangarang.git
@@ -16,8 +17,7 @@ Vcs-Git: git://git.debian.org/pkg-kde/kde-extras/bangarang.git
 
 Package: bangarang
 Architecture: any
-Depends: ${shlibs:Depends},
- ${misc:Depends}
+Depends: ${misc:Depends}, ${shlibs:Depends}
 Description: Multimedia player with a lightweight interface for KDE
  Offers a media—audio and video—player with a lightweight interface. Integrates
  with the Nepomuk Social Semantic Desktop, supports command line arguments, can
