@@ -1,6 +1,7 @@
 bangarang (2.0.1-1) UNRELEASED; urgency=low
 
-  * New upstream release.
+  * New upstream release
+  * Bumped standards version to 3.9.2 (no changes needed)
 
   ********************************
   * UNRELEASED pending KDE 4.5.0 *
