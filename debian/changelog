@@ -1,6 +1,6 @@
 bangarang (2.0.1-1) UNRELEASED; urgency=low
 
-  * New upstream release
+  * New upstream release (Closes: #631603)
   * Bumped standards version to 3.9.2 (no changes needed)
 
   ********************************
