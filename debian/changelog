@@ -1,11 +1,12 @@
-bangarang (2.0-1) UNRELEASED; urgency=low
+bangarang (2.0.1-1) UNRELEASED; urgency=low
+
+  * New upstream release.
 
   ********************************
   * UNRELEASED pending KDE 4.5.0 *
   * Please update manpage before *
   * uploading.                   *
   ********************************
-
 
   * Imported Upstream version 2.0
   * Updated copyright file
