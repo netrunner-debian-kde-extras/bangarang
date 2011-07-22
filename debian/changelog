@@ -1,4 +1,4 @@
-bangarang (2.0.1-1) UNRELEASED; urgency=low
+bangarang (2.0.1-1) unstable; urgency=low
 
   * New upstream release (Closes: #631603)
     + We need at least KDE 4.5.0, updated Build-Depends accordingly
@@ -6,12 +6,12 @@ bangarang (2.0.1-1) UNRELEASED; urgency=low
     + We no longer need to correct the cz locale code to cs
   * Updated copyright file
   * Dropped README.source from quilt days
-  * Ignore .pc in git
   * Bumped Standards to 3.9.2
-  * Fix a typo in bangarang binary, 01_psychadelic_psychedelic.diff
   * Fixed watch file
+  * Fix a typo in bangarang binary, 01_psychadelic_psychedelic.diff
+  * Avoid QFSFileEngine::open warnings, 02_QFSFileEngine_open.diff
 
- -- Ryan Kavanagh <ryanakca@kubuntu.org>  Mon, 27 Jun 2011 08:43:16 -0400
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Fri, 22 Jul 2011 06:44:06 -0400
 
 bangarang (1.0.1-2) unstable; urgency=low
 
