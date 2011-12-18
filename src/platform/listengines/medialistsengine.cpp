@@ -16,6 +16,7 @@
 * along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "../devicemanager.h"
 #include "../mediaitemmodel.h"
 #include "medialistsengine.h"
 #include "listenginefactory.h"
@@ -35,6 +36,7 @@
 #include <Solid/DeviceInterface>
 #include <Solid/OpticalDisc>
 #include <Nepomuk/ResourceManager>
+
 
 MediaListsEngine::MediaListsEngine(ListEngineFactory * parent) : NepomukListEngine(parent)
 {
@@ -89,7 +91,14 @@ void MediaListsEngine::run()
             mediaItem.addContext(i18n("Genres"), "semantics://frequent?audio||limit=4||groupBy=genre");
             mediaItem.fields["isConfigurable"] = true;
             mediaList << mediaItem;
-            
+            mediaItem.title = i18n("Recently Added");
+            mediaItem.fields["title"] = mediaItem.title;
+            mediaItem.url = semanticsLriForRecentlyAdded("Audio");
+            mediaItem.artwork = KIcon("chronometer");
+            mediaItem.fields["isConfigurable"] = true;
+            mediaItem.clearContexts();
+            mediaList << mediaItem;
+
             mediaItem.title = i18n("Artists");
             mediaItem.fields["title"] = mediaItem.title;
             mediaItem.url = "music://artists";
@@ -172,7 +181,7 @@ void MediaListsEngine::run()
             mediaItem.fields["isConfigurable"] = false;
             mediaList << mediaItem;
         }
-        
+
         mediaItem.title = i18n("Files and Folders");
         mediaItem.fields["title"] = mediaItem.title;
         mediaItem.url = "files://audio?browseFolder";
@@ -181,18 +190,18 @@ void MediaListsEngine::run()
         mediaItem.fields["isConfigurable"] = false;
         mediaList << mediaItem;
         
+        // Show remote media servers
+        mediaList.append(loadServerList("audio"));
+
         //Show Audio CDs if present
-        QStringList udis = Utilities::availableDiscUdis(Solid::OpticalDisc::Audio);
-        foreach (QString udi, udis) {
+        QList<Solid::Device> cds = DeviceManager::instance()->deviceList(DeviceManager::AudioType);
+        foreach (Solid::Device cd, cds) {
             if (m_stop) {
                 return;
             }
-            Solid::Device device = Solid::Device( udi );
-            if ( !device.isValid() )
-                continue;
             mediaItem.title = i18n("Audio CD");
             mediaItem.fields["title"] = mediaItem.title;
-            mediaItem.url = QString( "cdaudio://%1" ).arg(udi);
+            mediaItem.url = QString( "cdaudio://%1" ).arg(cd.udi());
             mediaItem.artwork = KIcon("media-optical-audio");
             mediaItem.fields["isConfigurable"] = false;
             mediaList << mediaItem;
@@ -276,7 +285,14 @@ void MediaListsEngine::run()
             mediaItem.addContext(i18n("Directors"), "semantics://frequent?video||limit=4||groupBy=director");
             mediaItem.fields["isConfigurable"] = true;
             mediaList << mediaItem;
-            
+            mediaItem.title = i18n("Recently Added");
+            mediaItem.fields["title"] = mediaItem.title;
+            mediaItem.url = semanticsLriForRecentlyAdded("Video");
+            mediaItem.artwork = KIcon("chronometer");
+            mediaItem.fields["isConfigurable"] = true;
+            mediaItem.clearContexts();
+            mediaList << mediaItem;
+
             mediaItem.title = i18n("Movies");
             mediaItem.fields["title"] = mediaItem.title;
             mediaItem.url = "video://movies";
@@ -364,21 +380,18 @@ void MediaListsEngine::run()
         mediaItem.fields["isConfigurable"] = false;
         mediaList << mediaItem;
         
-        QStringList udis = Utilities::availableDiscUdis(Solid::OpticalDisc::VideoDvd);
-        foreach (QString udi, udis) {
+        QList<Solid::Device> dvds = DeviceManager::instance()->deviceList(DeviceManager::VideoType);
+        foreach (Solid::Device dvd, dvds) {
             if (m_stop) {
                 return;
             }
-            Solid::Device device = Solid::Device( udi );
-            if ( !device.isValid() )
-                continue;
-            const Solid::OpticalDisc* disc = Solid::Device(udi).as<const Solid::OpticalDisc>();
+            const Solid::OpticalDisc* disc = dvd.as<const Solid::OpticalDisc>();
             if ( disc == NULL )
                 continue;
             QString label = disc->label();
             mediaItem.title = label;
             mediaItem.fields["title"] = mediaItem.title;
-            mediaItem.url = QString( "dvdvideo://%1" ).arg(udi);
+            mediaItem.url = QString( "dvdvideo://%1" ).arg(dvd.udi());
             mediaItem.artwork = KIcon("media-optical-dvd");
             mediaItem.fields["isConfigurable"] = false;
             mediaList << mediaItem;
@@ -511,3 +524,67 @@ QString MediaListsEngine::semanticsLriForFrequent(const QString &type)
     }
     return lri;
 }
+
+QString MediaListsEngine::semanticsLriForRecentlyAdded(const QString &type)
+{
+    QString lri;
+    KConfig config;
+    KConfigGroup generalGroup( &config, "General" );
+    if (type == "Audio") {
+        int limit = generalGroup.readEntry("RecentlyAddedAudioLimit", 20);
+        lri = QString("semantics://recentlyadded?audio||limit=%1").arg(limit);
+    } else {
+        int limit = generalGroup.readEntry("RecentlyAddedVideoLimit", 20);
+        lri = QString("semantics://recentlyadded?video||limit=%1").arg(limit);
+    }
+    return lri;
+}
+
+QList<MediaItem> MediaListsEngine::loadServerList(QString type)
+{
+    //Load ampache server list
+    QList<MediaItem> mediaList;
+    QFile indexFile(KStandardDirs::locateLocal("data", "bangarang/ampacheservers", false));
+
+    if (!indexFile.exists()) {
+        return mediaList;
+    }
+    if (!indexFile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+        return mediaList;
+    }
+
+    QTextStream in(&indexFile);
+    while (!in.atEnd()) {
+        if (m_stop) {
+            return mediaList;
+        }
+        QString line = in.readLine();
+        QStringList nameUrl = line.split(":::");
+        if (nameUrl.count() >= 6) {
+            MediaItem mediaItem;
+            if (nameUrl.at(0).toLower() == type.toLower()) {
+                mediaItem.type = "Category";
+                mediaItem.artwork = KIcon("repository");
+                mediaItem.title = nameUrl.at(1).trimmed();
+                mediaItem.fields["title"] = mediaItem.title;
+                QString server = nameUrl.at(2).trimmed();
+                QString userName = nameUrl.at(3).trimmed();
+                QString key = nameUrl.at(4).trimmed();
+                int pwdLength = nameUrl.at(5).trimmed().toInt();
+                mediaItem.url = QString("ampache://%1?server=%2||username=%3||key=%4||request=root")
+                                       .arg(type)
+                                       .arg(server)
+                                       .arg(userName)
+                                       .arg(key);
+                mediaItem.fields["server"] = server;
+                mediaItem.fields["username"] = userName;
+                mediaItem.fields["key"] = key;
+                mediaItem.fields["pwdLength"] = pwdLength;
+                mediaItem.fields["isConfigurable"] = true;
+                mediaList << mediaItem;
+            }
+        }
+    }
+    return mediaList;
+}
+

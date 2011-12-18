@@ -62,7 +62,6 @@ namespace Utilities {
     QString deviceNameFromUrl(const KUrl &url);
     int invalidTitle();
     QString deviceName( QString udi, Phonon::MediaObject *mobj = NULL );
-    QStringList availableDiscUdis(Solid::OpticalDisc::ContentType type);
     bool nepomukInited();
     QStringList cleanStringList(QStringList stringList);
     QString removeRangesFromString(const QString& str, QString begin, QString end);
@@ -71,5 +70,6 @@ namespace Utilities {
     QString capitalize(const QString & text);
     QHash<QString, QStringList> multiValueAppend(QHash<QString, QStringList> multiValues, QString key, QString newValue);
     QString durationString(int seconds);
+    QString sha256Of(QString in);
 }
 #endif //UTILITIES_GENERAL_H

@@ -20,6 +20,7 @@
 #include "mediaitemmodel.h"
 #include "utilities/utilities.h"
 #include "infofetchers/dbpediainfofetcher.h"
+#include "infofetchers/doubaninfofetcher.h"
 #include "infofetchers/feedinfofetcher.h"
 #include "infofetchers/filenameinfofetcher.h"
 #include "infofetchers/lastfminfofetcher.h"
@@ -34,9 +35,12 @@
 #include <KStandardDirs>
 #include <QApplication>
 #include <QPainter>
+#include <QMimeData>
+#include <QFile>
 #include <taglib/fileref.h>
 #include <taglib/tstring.h>
 #include <taglib/id3v2tag.h>
+#include <KDateTime>
 
 InfoItemModel::InfoItemModel(QObject *parent) : QStandardItemModel(parent)
 {
@@ -125,6 +129,20 @@ InfoItemModel::InfoItemModel(QObject *parent) : QStandardItemModel(parent)
     m_drillLris["Actor"] = "video://sources?||actor=%1";
     m_drillLris["Director"] = "video://sources?||director=%1";
 
+    //Set up drop lists data
+    m_valueListLris["artist"] = "music://artists";
+    m_valueListLris["album"] = "music://albums";
+    m_valueListLris["audioGenre"] = "music://genres";
+    m_valueListLris["seriesName"] = "video://tvshows";
+    m_valueListLris["actor"] = "video://actors";
+    m_valueListLris["director"] = "video://directors";
+    m_valueListLris["videoGenre"] = "video://genres";
+    m_valueListLris["audioTags"] = "tag://audiotags";
+    m_valueListLris["videoTags"] = "tag://videotags";
+    m_valueListLoader = new MediaItemModel(this);
+    connect(m_valueListLoader, SIGNAL(mediaListChanged()), this, SLOT(loadNextValueList()));
+    m_valueListLoader->loadLRI("music://artists");
+
     //Set up InfoFetchers
     TMDBInfoFetcher * tmdbInfoFetcher = new TMDBInfoFetcher(this);
     connect(tmdbInfoFetcher, SIGNAL(infoFetched(QList<MediaItem>)), this, SLOT(infoFetched(QList<MediaItem>)));
@@ -149,6 +167,14 @@ InfoItemModel::InfoItemModel(QObject *parent) : QStandardItemModel(parent)
     connect(lastfmInfoFetcher, SIGNAL(noResults(InfoFetcher *)), this, SLOT(noResults(InfoFetcher *)));
     connect(lastfmInfoFetcher, SIGNAL(updateFetchedInfo(int,MediaItem)), this, SLOT(updateFetchedInfo(int,MediaItem)));
     m_infoFetchers.append(lastfmInfoFetcher);
+
+    DoubanInfoFetcher * doubanInfoFetcher = new DoubanInfoFetcher(this);
+    connect(doubanInfoFetcher, SIGNAL(infoFetched(QList<MediaItem>)), this, SLOT(infoFetched(QList<MediaItem>)));
+    connect(doubanInfoFetcher, SIGNAL(fetching()), this, SIGNAL(fetching()));
+    connect(doubanInfoFetcher, SIGNAL(fetchComplete(InfoFetcher *)), this, SLOT(infoFetcherComplete(InfoFetcher *)));
+    connect(doubanInfoFetcher, SIGNAL(noResults(InfoFetcher *)), this, SLOT(noResults(InfoFetcher *)));
+    connect(doubanInfoFetcher, SIGNAL(updateFetchedInfo(int,MediaItem)), this, SLOT(updateFetchedInfo(int,MediaItem)));
+    m_infoFetchers.append(doubanInfoFetcher);
 
     /* NOTE: Results returned from DBPedia SPARQL frontend is inconsistent
              InfoFetcher is disabled until this problem is resolved
@@ -177,6 +203,7 @@ InfoItemModel::InfoItemModel(QObject *parent) : QStandardItemModel(parent)
     m_infoFetchers.append(fileNameInfoFetcher);
 
     m_selectedFetchedMatch = -1;
+    m_sourceModel = 0;
 
     //Setup indexer
     m_indexer = new MediaIndexer(this);
@@ -257,7 +284,13 @@ QList<MediaItem> InfoItemModel::mediaList()
 
 void InfoItemModel::setSourceModel(MediaItemModel * sourceModel)
 {
+    if (m_sourceModel) {
+        disconnect(m_sourceModel, SIGNAL(updateSourceInfoFinished()), this, SLOT(reloadValueLists()));
+    }
     m_sourceModel = sourceModel;
+    if (m_sourceModel) {
+        connect(m_sourceModel, SIGNAL(updateSourceInfoFinished()), this, SLOT(reloadValueLists()));
+    }
 }
 
 QHash<QString, QVariant> InfoItemModel::fetchingStatus()
@@ -426,11 +459,14 @@ void InfoItemModel::selectFetchedMatch(int index)
 
 void InfoItemModel::setRating(int rating)
 {
+    if (rating < 0 || rating > 10) {
+        return;
+    }
+    m_indexer->updateRating(m_mediaList, rating);
     for (int i = 0; i < m_mediaList.count(); i++) {
         MediaItem mediaItem = m_mediaList.at(i);
         mediaItem.fields["rating"] = rating;
         m_mediaList.replace(i, mediaItem);
-        m_indexer->updateRating(mediaItem.fields["resourceUri"].toString(), rating);
     }
     m_originalList = m_mediaList;
     for (int i = 0 ; i < rowCount(); i++) {
@@ -617,11 +653,16 @@ void InfoItemModel::addFieldToValuesModel(const QString &fieldTitle, const QStri
         fieldItem->setData(value, Qt::DisplayRole);
         fieldItem->setData(value, Qt::EditRole);
         fieldItem->setData(value, InfoItemModel::OriginalValueRole); //stores copy of original data
+        fieldItem->setData(valueList(field), InfoItemModel::ValueListRole);
 
         //Store drill lri(s)
         setDrill(fieldItem, field, value);
 
-        if (field == "url" || field == "relatedTo") {
+        if (field == "url" || field == "relatedTo" || field == "lastPlayed") {
+            if (value.type() == QVariant::DateTime) {
+                KDateTime dateTime(value.toDateTime());
+                value = QVariant(KGlobal::locale()->formatDateTime(dateTime.toLocalZone(), KLocale::FancyLongDate));
+            }
             fieldItem->setData(value, Qt::ToolTipRole);
         }
     } else {
@@ -671,13 +712,20 @@ bool InfoItemModel::hasMultipleValues(const QString &field)
 
 QVariant InfoItemModel::commonValue(const QString &field)
 {
-    QVariant value;
+    QVariant value = QVariant(QString());
     for (int i = 0; i < m_mediaList.count(); i++) {
         if (m_mediaList.at(i).fields.contains(field)) {
             if (value.isNull()) {
                 value = m_mediaList.at(i).fields.value(field);
             } else if (m_mediaList.at(i).fields.value(field) != value) {
-                value = QVariant();
+                QVariant::Type type = m_mediaList.at(i).fields.value(field).type();
+                if (type == QVariant::String) {
+                    value = QVariant(QString());
+                } else if (type == QVariant::StringList) {
+                    value = QVariant(QStringList());
+                } else {
+                    value = QVariant(QString());
+                }
                 break;
             }
         }
@@ -687,16 +735,34 @@ QVariant InfoItemModel::commonValue(const QString &field)
 
 QStringList InfoItemModel::valueList(const QString &field)
 {
-    QStringList value;
-    value << QString();
-    for (int i = 0; i < m_mediaList.count(); i++) {
-        if (m_mediaList.at(i).fields.contains(field)) {
-            if (value.indexOf(m_mediaList.at(i).fields.value(field).toString()) == -1) {
-                value << m_mediaList.at(i).fields.value(field).toString();
-            }
+    QStringList values;
+    QString lookupField = field;
+    QString type;
+    if (m_mediaList.count() > 0) {
+        type = m_mediaList.at(0).type;
+    }
+
+    if (lookupField == "genre") {
+        if (type == "Audio") {
+            lookupField= "audioGenre";
+        } else if (type == "Video") {
+            lookupField = "videoGenre";
+        }
+    } else if (lookupField == "composer") {
+        lookupField = "artist";
+    } else if (lookupField == "tags") {
+        if (type == "Audio") {
+            lookupField= "audioTags";
+        } else if (type == "Video") {
+            lookupField = "videoTags";
         }
     }
-    return value;   
+
+    if (m_valueLists.contains(lookupField)) {
+        values = m_valueLists.value(lookupField);
+    }
+
+    return values;
 }
 
 bool InfoItemModel::isEmpty(const QString &field)
@@ -801,9 +867,9 @@ void InfoItemModel::updateMediaList()
 
 void InfoItemModel::itemChanged(QStandardItem *changedItem)
 {
+    QString field = changedItem->data(InfoItemModel::FieldRole).toString();
     if (changedItem->data(Qt::EditRole) != changedItem->data(InfoItemModel::OriginalValueRole)) {
         m_modified = true;
-        QString field = changedItem->data(InfoItemModel::FieldRole).toString();
         if (field == "artwork") {
             disconnect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
             QString artworkUrl = changedItem->data(Qt::EditRole).toString();
@@ -830,7 +896,11 @@ void InfoItemModel::itemChanged(QStandardItem *changedItem)
             setDrill(changedItem, field, value);
             connect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
         }
-        updateMediaList();
+
+        //Since the data has changed then make sure the multipleValues flag is set to false
+        disconnect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
+        changedItem->setData(false, InfoItemModel::MultipleValuesRole);
+        connect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
     } else {
         m_modified = false;
         for (int row = 0; row < rowCount(); row++) {
@@ -843,6 +913,19 @@ void InfoItemModel::itemChanged(QStandardItem *changedItem)
             }
         }
     }
+
+    updateMediaList();
+
+    //For type changes load all the fields for the new type
+    if (field == "audioType" || field == "videoType") {
+        int originalType = changedItem->data(InfoItemModel::OriginalValueRole).toInt();
+        int row = changedItem->row();
+        loadFieldsInOrder();
+        disconnect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
+        setData(index(row, 0), originalType, InfoItemModel::OriginalValueRole);
+        connect(this, SIGNAL(itemChanged(QStandardItem *)), this, SLOT(itemChanged(QStandardItem *)));
+    }
+
     emit infoChanged(m_modified);
     
 }
@@ -903,6 +986,8 @@ bool InfoItemModel::getArtwork(QStandardItem *fieldItem, QString artworkUrlOverr
                 m_utilThread->getArtworksFromMediaItem(mediaItem, ignoreCache);
             }
         } else {
+            //TODO: If Music mediaItems have embedded artwork, this will always return the embedded artwork instead of
+            //      specified artworkUrl. FIX in Utilities.
             QPixmap artwork = Utilities::getArtworkFromMediaItem(mediaItem, ignoreCache);
             if (!artwork.isNull()) {
                 fieldItem->setData(QIcon(artwork), Qt::DecorationRole);
@@ -1110,3 +1195,119 @@ void InfoItemModel::cancelFetching()
         emit fetchComplete();
     }
 }
+
+Qt::DropActions InfoItemModel::supportedDropActions() const
+{
+    return Qt::MoveAction | Qt::CopyAction;
+}
+
+QStringList InfoItemModel::mimeTypes() const
+{
+    QStringList types;
+    types << "text/uri-list" << "image";
+    return types;
+}
+
+Qt::ItemFlags InfoItemModel::flags(const QModelIndex &index) const
+{
+    Qt::ItemFlags useFlags = Qt::ItemIsSelectable | Qt::ItemIsEnabled;
+
+    QStandardItem *item = this->itemFromIndex(index);
+    if (!item) {
+        return useFlags;
+    }
+    if (this->itemFromIndex(index)->isEditable()) {
+        useFlags |= Qt::ItemIsEditable;
+    }
+    QString field = data(index, InfoItemModel::FieldRole).toString();
+    if (index.isValid() && field == "artwork") {
+        useFlags |= Qt::ItemIsDropEnabled;
+    }
+    return useFlags;
+}
+
+bool InfoItemModel::dropMimeData(const QMimeData *mimeData,
+                                     Qt::DropAction action, int row, int column, const QModelIndex &parent)
+{
+    if (parent.column() > 0) {
+        return false;
+    }
+
+    if (parent.row() < 0 || parent.row() >= this->rowCount()) {
+        return false;
+    }
+
+    if (action == Qt::IgnoreAction) {
+        return true;
+    }
+
+    if (!(mimeData->hasUrls() ||
+          mimeData->hasImage())) {
+        return false;
+    }
+
+    QString field = data(index(parent.row(), 0), InfoItemModel::FieldRole).toString();
+    if (field != "artwork") {
+        return false;
+    }
+
+    if (mimeData->hasUrls()) {
+        QList<QUrl> urls = mimeData->urls();
+        if (!urls.isEmpty()) {
+            KUrl url(urls.at(0));
+            if (url.isLocalFile()) {
+                setData(index(parent.row(), 0), url.prettyUrl(), Qt::EditRole);
+                setData(index(parent.row(), 0), false, InfoItemModel::MultipleValuesRole);
+                return true;
+            }
+        }
+    }
+    if (mimeData->hasImage()) {
+        QImage image = qvariant_cast<QImage>(mimeData->imageData());
+        QString thumbnailFilename = QString("bangarang/thumbnails/Dropped-%1.png")
+                                      .arg(QDateTime::currentDateTime().toString("yyyyMMddhhmmss"));
+        KUrl thumbnailUrl = KUrl(KStandardDirs::locateLocal("data", thumbnailFilename, true));
+        image.save(thumbnailUrl.path(),"PNG");
+        setData(index(parent.row(), 0), thumbnailUrl.prettyUrl(), Qt::EditRole);
+        setData(index(parent.row(), 0), false, InfoItemModel::MultipleValuesRole);
+        return true;
+    }
+    return false;
+    Q_UNUSED(parent);
+    Q_UNUSED(row);
+    Q_UNUSED(column);
+}
+
+void InfoItemModel::loadNextValueList()
+{
+    QString lri = m_valueListLoader->mediaListProperties().lri;
+    QString field = m_valueListLris.key(lri);
+    if (field.isEmpty()) {
+        return;
+    }
+    QStringList valueList;
+    for (int i = 0; i < m_valueListLoader->rowCount(); i++) {
+        valueList.append(m_valueListLoader->mediaItemAt(i).title);
+    }
+    if (!valueList.isEmpty()) {
+        m_valueLists[field] = valueList;
+    }
+    m_loadedValueLists.append(field);
+    QStringList allLoadableFields = m_valueListLris.keys();
+    for (int i = 0; i < allLoadableFields.count(); i++) {
+        QString loadableField = allLoadableFields.at(i);
+        if (!m_loadedValueLists.contains(loadableField)) {
+            QString lri = m_valueListLris.value(loadableField);
+            m_valueListLoader->loadLRI(lri);
+            break;
+        }
+    }
+}
+
+void InfoItemModel::reloadValueLists()
+{
+    m_loadedValueLists.clear();
+    QString lri = m_valueListLris.values().at(0);
+    m_valueListLoader->loadLRI(lri);
+}
+

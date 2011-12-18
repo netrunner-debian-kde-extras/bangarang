@@ -21,8 +21,8 @@
 #include "utilities/utilities.h"
 #include "mediavocabulary.h"
 #include "mediaindexer.h"
-#include "bangarangapplication.h"
 #include <time.h>
+#include <KApplication>
 #include <KUrl>
 #include <KIcon>
 #include <KDebug>
@@ -34,14 +34,13 @@
 #include <Soprano/Vocabulary/RDF>
 #include <Soprano/Vocabulary/XMLSchema>
 #include <QDBusInterface>
-#include <actionsmanager.h>
 #include <Solid/Device>
 #include <Solid/Block>
+#include <Solid/PowerManagement>
 
 
 Playlist::Playlist(QObject * parent, Phonon::MediaObject * mediaObject) : QObject(parent) 
 {
-    m_application = (BangarangApplication *)KApplication::kApplication();
     m_parent = parent;
     m_mediaController = NULL;
     m_currentPlaylist = new MediaItemModel(this);
@@ -60,6 +59,7 @@ Playlist::Playlist(QObject * parent, Phonon::MediaObject * mediaObject) : QObjec
     m_notificationRestrictions = 0;
     m_filterProxyModel = new MediaSortFilterProxyModel();
     m_playbackInfoChecks = 0;
+    m_powerManagementCookie = -1;
     
     setMediaObject(mediaObject);
 
@@ -157,6 +157,7 @@ void Playlist::playItemAt(int row, Model model)
     
     //Play media Item
     m_mediaObject->clearQueue();
+    m_currentStream.clear();
     QString subType;
     if (nextMediaItem.type == "Audio") {
         subType = nextMediaItem.fields["audioType"].toString();
@@ -175,15 +176,17 @@ void Playlist::playItemAt(int row, Model model)
         Phonon::DiscType discType = (subType == "CD Track") ? Phonon::Cd : Phonon::Dvd;
         Phonon::MediaSource src = Phonon::MediaSource(discType, block->device());
         int title = nextMediaItem.fields["trackNumber"].toInt();
-        if (m_mediaObject->currentSource().deviceName() != src.deviceName())
+        if (m_mediaObject->currentSource().discType() != src.discType() ||
+            m_mediaObject->currentSource().deviceName() != src.deviceName()) {
             m_mediaObject->setCurrentSource(src);
-        bool autoplay = m_mediaController->autoplayTitles();
-        if ( !autoplay )
+        }
+        if (title != -1) {
+            m_mediaController->setCurrentTitle(title);
             m_mediaController->setAutoplayTitles(true);
-        m_mediaController->setCurrentTitle(title);
-        m_mediaController->setAutoplayTitles(autoplay);
-        titleChanged(title);
+        }
+        m_mediaObject->play();
     } else if (subType == "Audio Stream") {
+        m_currentStream = nextMediaItem.url;
         m_streamListUrls.clear();
         if (Utilities::isPls(nextMediaItem.url) || Utilities::isM3u(nextMediaItem.url)) {
             QList<MediaItem> streamList = Utilities::mediaListFromSavedList(nextMediaItem);
@@ -196,13 +199,14 @@ void Playlist::playItemAt(int row, Model model)
                 }
             }
         } else {
-            m_streamListUrls << nextMediaItem.url;    
+            m_streamListUrls << nextMediaItem.url;
         }
         m_mediaObject->setCurrentSource(Phonon::MediaSource(QUrl::fromPercentEncoding(m_currentUrl.toUtf8())));
+        m_mediaObject->play();
     } else {
         m_mediaObject->setCurrentSource(Phonon::MediaSource(QUrl::fromEncoded(m_currentUrl.toUtf8())));
+        m_mediaObject->play();
     }
-    m_mediaObject->play();
     m_state = Playlist::Playing;
 }
 
@@ -535,6 +539,9 @@ void Playlist::queueNextPlaylistItem() // connected to MediaObject::aboutToFinis
         //Playlist is finished
         m_state = Playlist::Finished;
     } else {
+        if (m_queue->rowCount() > 0 && Utilities::isAudioStream(m_queue->mediaItemAt(0).fields["audioType"].toString())){
+            return;
+        }
         m_queue->removeMediaItemAt(0);
         addToQueue();
         if (m_queue->rowCount() > 0) {
@@ -560,10 +567,14 @@ void Playlist::queueNextPlaylistItem() // connected to MediaObject::aboutToFinis
 void Playlist::currentSourceChanged(const Phonon::MediaSource & newSource) //connected to MediaObject::currentSourceChanged
 {
     //Update currentUrl and check next mediaItem to decide how to setAutoplayTitles
-    if (newSource.type() == Phonon::MediaSource::Disc && m_queue->rowCount() > 1) {
-        if (Utilities::isDisc(m_queue->mediaItemAt(1).url)) {
-            m_currentUrl = m_queue->mediaItemAt(1).url;
-            m_mediaController->setAutoplayTitles((m_queue->mediaItemAt(1).fields["trackNumber"].toInt() == m_mediaController->currentTitle() + 1));
+    if (newSource.type() == Phonon::MediaSource::Disc) {
+        if (m_queue->rowCount() > 0) {
+            if (Utilities::isDisc(m_queue->mediaItemAt(0).url)) {
+                m_currentUrl = m_queue->mediaItemAt(0).url;
+                if (m_queue->rowCount() >1) {
+                    m_mediaController->setAutoplayTitles((m_queue->mediaItemAt(1).fields["trackNumber"].toInt() == m_mediaController->currentTitle() + 1));
+                }
+            }
         }
     } else {
         m_currentUrl = newSource.url().toString();
@@ -586,6 +597,7 @@ void Playlist::titleChanged(int newTitle) //connected to MediaController::titleC
 void Playlist::confirmPlaylistFinished() //connected to MediaObject::finished()
 {
     if (m_state == Playlist::Finished) {
+        m_mediaObject->stop();
         //Refresh playlist model to ensure views get updated
         int row = -1;
         if (m_nowPlaying->rowCount() > 0) {
@@ -622,6 +634,16 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
     if (m_hadVideo && m_mediaObject->hasVideo()) {
         return;
     }
+
+    //If a pls or m3u based stream starts playing and there are other streams in the playlist
+    //clear the queue to allow the other playlist streams to accessed.
+    if (newstate == Phonon::PlayingState && nowPlayingModel()->rowCount() > 0) {
+        if (Utilities::isAudioStream(nowPlayingModel()->mediaItemAt(0).fields["audioType"].toString())) {
+            m_mediaObject->clearQueue();
+            m_streamListUrls.clear();
+        }
+    }
+
     if (newstate == Phonon::PlayingState || newstate == Phonon::PausedState) {
         m_hadVideo = m_mediaObject->hasVideo();
         
@@ -652,22 +674,21 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
     //NOTE: In KDE 4.6, below is not the correct way to disable power saving.
     //TODO: Update to use new Solid power status api in KDE 4.6 and later.
     bool isKDE46OrGreater = false;
-    if ((KDE::versionMinor() >= 5) && (KDE::versionRelease() >= 90)) {
+    if ((KDE::versionMinor() >= 6)) {
         isKDE46OrGreater = true;
     }
     
-    QDBusInterface iface(
-    		"org.kde.kded",
-    		"/modules/powerdevil",
-    		"org.kde.PowerDevil");
-
-    //NOTE:PowerDevil does not expose the profile() method over dbus which would allow
-    //     determining the current profile and setting to last profile.
     if ((newstate == Phonon::PlayingState || newstate == Phonon::PausedState)
         && oldstate != Phonon::PlayingState
                 && oldstate != Phonon::PausedState) {
 
-        if (!isKDE46OrGreater) {
+        if (isKDE46OrGreater) {
+            m_powerManagementCookie = Solid::PowerManagement::beginSuppressingScreenPowerManagement(i18n("Video Playback"));
+        } else {
+            QDBusInterface iface(
+                        "org.kde.kded",
+                        "/modules/powerdevil",
+                        "org.kde.PowerDevil");
             iface.call("setProfile", "Presentation");
         }
         //Disable screensaver
@@ -676,13 +697,18 @@ void Playlist::stateChanged(Phonon::State newstate, Phonon::State oldstate) {
 
     } else if (newstate == Phonon::StoppedState &&
                (oldstate == Phonon::PlayingState || oldstate == Phonon::PausedState)){
-        /* There is no way to reset the profile to the last used one.
-         * We therefore set the profile always to performance and let the
-         * refreshStatus call handle the case when the computer runs on battery.
-         */
-        //iface.call("setProfile", "Performance");
-        if (!isKDE46OrGreater) {
+        if (isKDE46OrGreater) {
+            Solid::PowerManagement::stopSuppressingScreenPowerManagement(m_powerManagementCookie);
+        } else {
+            QDBusInterface iface(
+                        "org.kde.kded",
+                        "/modules/powerdevil",
+                        "org.kde.PowerDevil");
             iface.call("refreshStatus");
+        }
+        if (m_notificationRestrictions) {
+            delete m_notificationRestrictions;
+            m_notificationRestrictions = 0;
         }
     }
 }
@@ -837,11 +863,9 @@ void Playlist::updateNowPlaying()
     int queueRow = -1;
     for (int i = 0; i < m_queue->rowCount(); i++) {
         if (Utilities::isAudioStream(m_queue->mediaItemAt(i).fields["audioType"].toString())) {
-            for (int j = 0; j < m_streamListUrls.count(); j++) {
-                if (m_currentUrl ==  QUrl::fromPercentEncoding(m_streamListUrls.at(j).toUtf8())) {
-                    queueRow = i;
-                    break;
-                }
+            if (m_currentStream == m_queue->mediaItemAt(i).url) {
+                queueRow = i;
+                break;
             }
         } else {
             if (m_currentUrl == QUrl::fromEncoded(m_queue->mediaItemAt(i).url.toUtf8()).toString()) {
@@ -850,10 +874,12 @@ void Playlist::updateNowPlaying()
             }
         }
     }
-    
+
+
     //Update Now Playing model
+    MediaItem nowPlayingItem;
     if (queueRow != -1) {
-        MediaItem nowPlayingItem = m_queue->mediaItemAt(queueRow);
+        nowPlayingItem = m_queue->mediaItemAt(queueRow);
 
         //Get artwork
         QPixmap artwork = Utilities::getArtworkFromMediaItem(nowPlayingItem);
@@ -876,7 +902,7 @@ void Playlist::updateNowPlaying()
             m_nowPlaying->loadMediaItem(nowPlayingItem, true);
         }
     }
-    
+
     //Refresh playlist model to ensure views get updated
     int row = -1;
     if (m_nowPlaying->rowCount() > 0) {
@@ -892,7 +918,7 @@ void Playlist::updateNowPlaying()
         m_currentPlaylist->item(oldItemRow,0)->setData(false, MediaItem::NowPlayingRole);
     }
     
-    if ((m_mediaObject->currentSource().discType() != Phonon::Cd) && (m_mediaObject->currentSource().discType() != Phonon::Dvd)) {
+    if (!Utilities::isDisc(nowPlayingItem.url)) {
         //Update last played date and play count
         if (m_nepomukInited && m_nowPlaying->rowCount() > 0) {
             m_playbackInfoChecks = 0;

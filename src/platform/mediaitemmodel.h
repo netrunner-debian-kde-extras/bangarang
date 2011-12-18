@@ -166,7 +166,7 @@ public:
     MediaItem() : nowPlaying(false), isSavedList(false), exists(true), hasCustomArtwork(false) {}
 };
 
-Q_DECLARE_METATYPE(MediaItem);
+Q_DECLARE_METATYPE(MediaItem)
 
 
 /** 
@@ -335,7 +335,7 @@ public:
                    *             resources (files, streams, etc.). */
     
 };
-Q_DECLARE_METATYPE(MediaListProperties);
+Q_DECLARE_METATYPE(MediaListProperties)
 
 
 class MediaList : QList<MediaItem>{};
@@ -665,6 +665,11 @@ class MediaItemModel : public QStandardItemModel
          * Emitted only when changed independent of media list load.
          */
         void mediaListPropertiesChanged();
+
+        /**
+         * Emmitted when updateSourceInfo is finished.
+         */
+        void updateSourceInfoFinished();
         
     public Q_SLOTS:
         /**

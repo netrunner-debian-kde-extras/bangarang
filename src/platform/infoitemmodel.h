@@ -134,6 +134,10 @@ class InfoItemModel : public QStandardItemModel
           */
         QList<MediaItem> fetchedMatches();
 
+        Qt::DropActions supportedDropActions() const;
+        Qt::ItemFlags flags(const QModelIndex &index) const;
+        bool dropMimeData(const QMimeData *mimeData, Qt::DropAction action, int row, int column, const QModelIndex &parent);
+        QStringList mimeTypes() const;
         QHash<QString, QVariant> fetchingStatus();
 
     public slots:
@@ -157,6 +161,7 @@ class InfoItemModel : public QStandardItemModel
          * Loads fields for currently selected items in order
          */
         void loadFieldsInOrder();
+
 
     Q_SIGNALS:
         /**
@@ -196,6 +201,10 @@ class InfoItemModel : public QStandardItemModel
         QList<MediaItem> m_fetchedMatches;
         int m_selectedFetchedMatch;
         Utilities::Thread * m_utilThread;
+        MediaItemModel * m_valueListLoader;
+        QHash<QString, QString> m_valueListLris;
+        QStringList m_loadedValueLists;
+        QHash<QString, QStringList> m_valueLists;
         void fetchBatch(InfoFetcher *infoFetcher, int maxMatches, bool updateRequiredFields, bool updateArtwork);
         QHash<QString, QVariant> m_fetchingStatus;
         void addFieldToValuesModel(const QString &fieldTitle, const QString &field, bool isEditable = false);
@@ -219,6 +228,8 @@ class InfoItemModel : public QStandardItemModel
         void noResults(InfoFetcher *infoFetcher);
         void gotArtworks(QList<QImage> artworks, MediaItem mediaItem);
         void cancelFetching();
+        void loadNextValueList();
+        void reloadValueLists();
 };
 
 #endif // INFOITEMDELEGATE_H

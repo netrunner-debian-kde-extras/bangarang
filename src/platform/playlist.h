@@ -30,7 +30,6 @@ class MediaItem;
 class MediaIndexer;
 class MediaSortFilterProxyModel;
 class QSortFilterProxyModel;
-class BangarangApplication;
 
 
 
@@ -273,7 +272,6 @@ class Playlist : public QObject
         
         
     private:
-        BangarangApplication *m_application;
         QObject * m_parent;
         MediaItemModel * m_currentPlaylist;
         MediaItemModel * m_nowPlaying;
@@ -305,6 +303,8 @@ class Playlist : public QObject
         KNotificationRestrictions * m_notificationRestrictions;
         QList<QString> m_streamListUrls;
         QString m_currentUrl;
+        QString m_currentStream;
+        int m_powerManagementCookie;
         
     private slots:
         void currentSourceChanged(const Phonon::MediaSource & newSource);
