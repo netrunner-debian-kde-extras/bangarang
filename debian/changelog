@@ -1,3 +1,12 @@
+bangarang (2.1-1) unstable; urgency=low
+
+  * New upstream release (Closes: #651418)
+  * Drop 01_psychadelic_psychedelic.diff, applied upstream
+  * Drop 02_QFSFileEngine_open.diff, applied upstream
+  * Andrew's email changed to @gmail.com, update copyright file
+
+ -- Ryan Kavanagh <ryanakca@kubuntu.org>  Sun, 18 Dec 2011 13:34:52 -0500
+
 bangarang (2.0.1-1) unstable; urgency=low
 
   * New upstream release (Closes: #631603)
