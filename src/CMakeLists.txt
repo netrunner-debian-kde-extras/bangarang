@@ -1,31 +1,38 @@
 add_subdirectory(platform/nepomukwriter)
 
 set(BangarangSources
-    actionsmanager.cpp
-    audiosettings.cpp
-    bangarangapplication.cpp
-    bangarangnotifieritem.cpp
-    bookmarksmanager.cpp
-    dbusobjects.cpp
-    mainwindow.cpp
-    main.cpp
-    mediaitemdelegate.cpp
-    medialistsettings.cpp
-    mediaview.cpp
-    nowplayingdelegate.cpp
-    nowplayingview.cpp
-    playlistview.cpp
-    infobox.cpp
-    infomanager.cpp
-    infoitemdelegate.cpp
-    infoitemview.cpp
-    ratingdelegate.cpp
-    savedlistsmanager.cpp
-    sensiblewidgets.cpp
-    starrating.cpp
-    videosettings.cpp
-    platform/bangarangvideowidget.cpp
+    app/main.cpp
+    app/common/actionsmanager.cpp
+    app/common/bangarangapplication.cpp
+    app/common/bangarangnotifieritem.cpp
+    app/common/dbusobjects.cpp
+    app/common/flickcharm.cpp
+    app/common/mainwindow.cpp
+    app/common/mediaitemdelegate.cpp
+    app/common/mediaview.cpp
+    app/common/ratingdelegate.cpp
+    app/common/sensiblewidgets.cpp
+    app/common/starrating.cpp
+    app/common/artworkpainter.cpp
+    app/medialists/audiolistsstack.cpp
+    app/medialists/medialistsettings.cpp
+    app/medialists/medialistsmanager.cpp
+    app/medialists/infobox.cpp
+    app/medialists/infomanager.cpp
+    app/medialists/infoitemdelegate.cpp
+    app/medialists/infoitemview.cpp
+    app/medialists/savedlistsmanager.cpp
+    app/medialists/videolistsstack.cpp
+    app/nowplaying/audiosettings.cpp
+    app/nowplaying/bangarangvideowidget.cpp
+    app/nowplaying/bookmarksmanager.cpp
+    app/nowplaying/nowplayingdelegate.cpp
+    app/nowplaying/nowplayingmanager.cpp
+    app/nowplaying/nowplayingview.cpp
+    app/nowplaying/playlistview.cpp
+    app/nowplaying/videosettings.cpp
     platform/dbpediaquery.cpp
+    platform/devicemanager.cpp
     platform/downloader.cpp
     platform/infoitemmodel.cpp
     platform/mediaitemmodel.cpp
@@ -36,12 +43,14 @@ set(BangarangSources
     platform/ontologyupdater.cpp
     platform/playlist.cpp
     platform/infofetchers/dbpediainfofetcher.cpp
+    platform/infofetchers/doubaninfofetcher.cpp
     platform/infofetchers/feedinfofetcher.cpp
     platform/infofetchers/filenameinfofetcher.cpp
     platform/infofetchers/infofetcher.cpp
     platform/infofetchers/lastfminfofetcher.cpp
     platform/infofetchers/tmdbinfofetcher.cpp
     platform/infofetchers/tvdbinfofetcher.cpp
+    platform/listengines/ampachelistengine.cpp
     platform/listengines/audioclipslistengine.cpp
     platform/listengines/audiostreamlistengine.cpp
     platform/listengines/cachelistengine.cpp
@@ -62,11 +71,12 @@ set(BangarangSources
     platform/utilities/filetags.cpp
     platform/utilities/general.cpp
     platform/utilities/mediaitems.cpp
+    platform/utilities/sha256.cpp
     platform/utilities/thread.cpp
     platform/utilities/typechecks.cpp
 )
 
-kde4_add_ui_files(BangarangSources mainwindow.ui)
+kde4_add_ui_files(BangarangSources app/ui/mainwindow.ui app/ui/audiolistsstack.ui app/ui/videolistsstack.ui)
 
 kde4_add_executable(bangarang ${BangarangSources})
 

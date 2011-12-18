@@ -43,6 +43,7 @@
 #include <Soprano/Vocabulary/XMLSchema>
 #include <Soprano/Model>
 #include <Nepomuk/Resource>
+#include <Nepomuk/File>
 #include <Nepomuk/Variant>
 #include <Nepomuk/ResourceManager>
 #include <Nepomuk/Tag>
@@ -148,6 +149,16 @@ MediaItem Utilities::mediaItemFromUrl(KUrl url, bool preferFileMetaData)
         return mediaItem;
     }
 
+    if (url.isLocalFile() && Utilities::isFSDirectory(url.url())) {
+        mediaItem.artwork = KIcon("folder");
+        mediaItem.url = QString("files://media?browseFolder||%1").arg(url.prettyUrl());
+        mediaItem.title = url.directory();
+        mediaItem.fields["title"] = mediaItem.title;
+        mediaItem.type = "Category";
+        mediaItem.fields["categoryType"] = "Basic+Artwork";
+        return mediaItem;
+    }
+
     mediaItem.url = url.prettyUrl();
     mediaItem.title = url.fileName();
     mediaItem.fields["url"] = mediaItem.url;
@@ -196,7 +207,7 @@ MediaItem Utilities::mediaItemFromUrl(KUrl url, bool preferFileMetaData)
             //Audio streams are mostly internet radio and so on
             //It's nicer for the user to see the server he's getting the stream from than anything
             //else as e.g. radios have their own website/servers
-            mediaItem.title = url.host();
+            mediaItem.title = url.host() + " - " + url.fileName();
             mediaItem.fields["title"] = mediaItem.title;
             mediaItem.type = "Audio";
             mediaItem.fields["audioType"] = "Audio Stream";
@@ -295,7 +306,7 @@ QList<MediaItem> Utilities::mediaItemsDontExist(const QList<MediaItem> &mediaLis
             dvdNotFound = true;
             Q_UNUSED(dvd);
         }
-        KUrl url = KUrl(url_string);
+        KUrl url = KUrl(QUrl::toPercentEncoding(url_string).data());
         if (dvdNotFound ||
             (url.isValid() && url.isLocalFile() && !QFile(url.path()).exists()) ||
             url_string.startsWith("trash:/")
@@ -338,6 +349,7 @@ MediaItem Utilities::mediaItemFromNepomuk(Nepomuk::Resource res, const QString &
 
     QUrl nieUrl = QUrl("http://www.semanticdesktop.org/ontologies/2007/01/19/nie#url");
     KUrl url(res.property(nieUrl).toUrl());
+    url = decodedUrl(url).prettyUrl();
     if (url.prettyUrl().startsWith("filex:/")) {
         url = urlForFilex(url);
     }
@@ -547,6 +559,7 @@ MediaItem Utilities::mediaItemFromIterator(Soprano::QueryResultIterator &it, con
     KUrl url = it.binding(MediaVocabulary::mediaResourceUrlBinding()).uri().isEmpty() ?
     it.binding(MediaVocabulary::mediaResourceBinding()).uri() :
     it.binding(MediaVocabulary::mediaResourceUrlBinding()).uri();
+    url = decodedUrl(url);
     if (url.prettyUrl().startsWith("filex:/")) {
         url = urlForFilex(url);
     }
@@ -910,10 +923,11 @@ MediaItem Utilities::categoryMediaItemFromIterator(Soprano::QueryResultIterator 
             QString artist = it.binding(MediaVocabulary::musicArtistNameBinding()).literal().toString();
             QString album = it.binding(MediaVocabulary::musicAlbumTitleBinding()).literal().toString();
             QString genre = it.binding(MediaVocabulary::genreBinding()).literal().toString();
+            genre = Utilities::genreFromRawTagGenre(genre);
             QString artistFilter = artist.isEmpty() ? QString(): QString("artist=%1").arg(artist);
             QString albumFilter = album.isEmpty() ? QString(): QString("album=%1").arg(album);
             QString genreFilter = genre.isEmpty() ? QString(): QString("genre=%1").arg(genre);
-            mediaItem.url = QString("music://artists?%1||%2||%3")
+            mediaItem.url = QString("music://albums?%1||%2||%3")
                             .arg(artistFilter)
                             .arg(albumFilter)
                             .arg(genreFilter);
@@ -1479,6 +1493,14 @@ KUrl Utilities::urlForFilex(KUrl url)
         normalUrl = url.prettyUrl();
     }
     return KUrl(normalUrl);
+}
+
+KUrl Utilities::decodedUrl(QUrl rawUrl)
+{
+    //NOTE: This undoes two layers of percent encoding.  This means that locations that
+    //      actually have "%[0-9]" in the path may be incorrectly changed.
+    QString rawUrlString = QUrl::fromPercentEncoding(rawUrl.toString().toUtf8());
+    return KUrl(rawUrlString);
 }
 
 #endif //UTILITIES_MEDIAITEMS_CPP
