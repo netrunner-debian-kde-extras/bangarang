@@ -10,7 +10,7 @@ Build-Depends: cmake,
                libtag1-dev,
                pkg-kde-tools (>= 0.5.0),
                shared-desktop-ontologies
-Standards-Version: 3.9.2
+Standards-Version: 3.9.3
 Homepage: http://gitorious.org/bangarang
 Vcs-Browser: http://git.debian.org/?p=pkg-kde/kde-extras/bangarang.git
 Vcs-Git: git://git.debian.org/pkg-kde/kde-extras/bangarang.git
