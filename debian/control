@@ -2,7 +2,7 @@ Source: bangarang
 Section: kde
 Priority: optional
 Maintainer: Debian KDE Extras Team <pkg-kde-extras@lists.alioth.debian.org>
-Uploaders: Ryan Kavanagh <ryanakca@kubuntu.org>,
+Uploaders: Ryan Kavanagh <rak@debian.org>,
            Andreas Marschke <xxtjaxx@gmail.com>
 Build-Depends: cmake,
                debhelper (>= 7.3),
